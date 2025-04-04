@@ -77,8 +77,8 @@ import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
-@Command(name = "rewrite", mixinStandardHelpOptions = true, version = "rewrite 0.2", description = "rewrite made with jbang", subcommands = rewrite.rewriteDiscover.class)
-class rewrite implements Callable<Integer> {
+@Command(name = "rewrite", mixinStandardHelpOptions = true, version = "rewrite 0.2", description = "rewrite made with jbang", subcommands = Rewrite.RewriteDiscover.class)
+class Rewrite implements Callable<Integer> {
 
     private static final String RECIPE_NOT_FOUND_EXCEPTION_MSG = "Could not find recipe '%s' among available recipes";
 
@@ -128,7 +128,7 @@ class rewrite implements Callable<Integer> {
     LogLevel recipeChangeLogLevel = LogLevel.WARN;
 
     public static void main(String... args) {
-        int exitCode = new CommandLine(new rewrite()).execute(args);
+        int exitCode = new CommandLine(new Rewrite()).execute(args);
         System.exit(exitCode);
     }
 
@@ -346,7 +346,7 @@ class rewrite implements Callable<Integer> {
         }
     }
 
-    rewrite.ResultsContainer listResults() {
+    Rewrite.ResultsContainer listResults() {
         var env = environment();
 
         if (activeRecipes.isEmpty()) {
@@ -532,7 +532,7 @@ class rewrite implements Callable<Integer> {
         return new ResultsContainer(baseDir(), filteredResults);
     }
 
-    rewrite getLog() {
+    Rewrite getLog() {
         return this;
     }
 
@@ -780,10 +780,10 @@ class rewrite implements Callable<Integer> {
 
 
     @CommandLine.Command(name = "discover")
-    static class rewriteDiscover implements Callable<Integer> {
+    static class RewriteDiscover implements Callable<Integer> {
 
         @CommandLine.ParentCommand
-        private rewrite rewrite; // picocli injects reference to parent command
+        private Rewrite rewrite; // picocli injects reference to parent command
 
         /**
          * The name of a specific recipe to show details for. For example:<br>
@@ -804,7 +804,7 @@ class rewrite implements Callable<Integer> {
         @Option(names = "recursion", defaultValue = "0")
         int recursion;
 
-        rewrite getLog() {
+        Rewrite getLog() {
             return rewrite;
         }
 
