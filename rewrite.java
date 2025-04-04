@@ -569,7 +569,7 @@ class Rewrite implements Callable<Integer> {
     // Source: https://sourcegraph.com/github.com/openrewrite/rewrite-maven-plugin@v5.40.0/-/blob/src/main/java/org/openrewrite/maven/AbstractRewriteBaseRunMojo.java?L471-489
     private void logRecipe(RecipeDescriptor rd, String prefix) {
         StringBuilder recipeString = new StringBuilder(prefix + rd.getName());
-        if (rd.getOptions() != null && !rd.getOptions().isEmpty()) { // Null check added
+        if (!rd.getOptions().isEmpty()) {
             String opts = rd.getOptions().stream().map(option -> {
                         if (option.getValue() != null) {
                             return option.getName() + "=" + option.getValue();
@@ -583,7 +583,7 @@ class Rewrite implements Callable<Integer> {
         }
         // Use the new log method with configured level
         log(recipeChangeLogLevel, recipeString.toString());
-        if (rd.getRecipeList() != null) { // Null check added
+        if (!rd.getRecipeList().isEmpty()) {
             for (RecipeDescriptor rchild : rd.getRecipeList()) {
                 logRecipe(rchild, prefix + "    ");
             }
