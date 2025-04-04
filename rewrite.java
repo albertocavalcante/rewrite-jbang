@@ -5,7 +5,7 @@
 //DEPS org.slf4j:slf4j-nop:2.0.16
 //DEPS org.apache.maven:maven-core:3.9.9
 
-//DEPS org.openrewrite:rewrite-bom:8.47.2@pom
+//DEPS org.openrewrite:rewrite-bom:8.48.0@pom
 //DEPS org.openrewrite:rewrite-core
 //DEPS org.openrewrite:rewrite-java
 //DEPS org.openrewrite:rewrite-java-8
@@ -211,8 +211,7 @@ class rewrite implements Callable<Integer> {
         }
         List<Path> pomToParse = Collections.singletonList(pomPath);
 
-        MavenParser.Builder mavenParserBuilder = MavenParser.builder()
-                .mavenConfig(baseDir.resolve(".mvn/maven.config"));
+        MavenParser.Builder mavenParserBuilder = MavenParser.builder();
 
         MavenSettings settings = buildSettings();
         MavenExecutionContextView mavenExecutionContext = MavenExecutionContextView.view(ctx);
