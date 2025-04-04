@@ -104,6 +104,17 @@ class rewrite implements Callable<Integer> {
     @Option(names = "--dry-run", defaultValue = "false")
     boolean dryRun;
 
+    // Add LogLevel enum
+    public enum LogLevel {
+        DEBUG,
+        INFO,
+        WARN,
+        ERROR
+    }
+
+    @Option(names = "--recipe-change-log-level", defaultValue = "WARN", description = "Log level for reporting recipe changes (DEBUG, INFO, WARN, ERROR).")
+    LogLevel recipeChangeLogLevel = LogLevel.WARN;
+
     public static void main(String... args) {
         int exitCode = new CommandLine(new rewrite()).execute(args);
         System.exit(exitCode);
@@ -451,7 +462,26 @@ class rewrite implements Callable<Integer> {
         return this;
     }
 
-    // Source: https://sourcegraph.com/github.com/openrewrite/rewrite-maven-plugin@v5.39.1/-/blob/src/main/java/org/openrewrite/maven/AbstractRewriteBaseRunMojo.java?L418-425
+    // log method to mimic plugin behavior
+    protected void log(LogLevel logLevel, CharSequence content) {
+        switch (logLevel) {
+            case DEBUG:
+                info(content.toString()); // Map DEBUG to INFO for now
+                break;
+            case INFO:
+                info(content.toString());
+                break;
+            case WARN:
+                warn(content.toString());
+                break;
+            case ERROR:
+                error(content.toString());
+                break;
+        }
+    }
+
+    // Updated Source URL
+    // Source: https://sourcegraph.com/github.com/openrewrite/rewrite-maven-plugin@v5.40.0/-/blob/src/main/java/org/openrewrite/maven/AbstractRewriteBaseRunMojo.java?L461-469
     protected void logRecipesThatMadeChanges(Result result) {
         String indent = "    ";
         String prefix = "    ";
@@ -461,13 +491,14 @@ class rewrite implements Callable<Integer> {
         }
     }
 
-    // Source: https://sourcegraph.com/github.com/openrewrite/rewrite-maven-plugin@v5.39.1/-/blob/src/main/java/org/openrewrite/maven/AbstractRewriteBaseRunMojo.java?L427-445
+    // Updated Source URL
+    // Source: https://sourcegraph.com/github.com/openrewrite/rewrite-maven-plugin@v5.40.0/-/blob/src/main/java/org/openrewrite/maven/AbstractRewriteBaseRunMojo.java?L471-489
     private void logRecipe(RecipeDescriptor rd, String prefix) {
         StringBuilder recipeString = new StringBuilder(prefix + rd.getName());
-        if (!rd.getOptions().isEmpty()) {
+        if (rd.getOptions() != null && !rd.getOptions().isEmpty()) { // Null check added
             String opts = rd.getOptions().stream().map(option -> {
                         if (option.getValue() != null) {
-                            return option.getName() + "=" + option.getValue();
+                             return option.getName() + "=" + option.getValue();
                         }
                         return null;
                     }
@@ -476,9 +507,12 @@ class rewrite implements Callable<Integer> {
                 recipeString.append(": {").append(opts).append("}");
             }
         }
-        getLog().warn(recipeString.toString());
-        for (RecipeDescriptor rchild : rd.getRecipeList()) {
-            logRecipe(rchild, prefix + "    ");
+        // Use the new log method with configured level
+        log(recipeChangeLogLevel, recipeString.toString());
+        if (rd.getRecipeList() != null) { // Null check added
+             for (RecipeDescriptor rchild : rd.getRecipeList()) {
+                 logRecipe(rchild, prefix + "    ");
+             }
         }
     }
 
