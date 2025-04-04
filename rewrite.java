@@ -661,7 +661,7 @@ class Rewrite implements Callable<Integer> {
                 throw new IllegalStateException("Unable to generate rewrite result file.", e);
             }
             logger.warn("Report available:");
-            logger.warn("    " + patchFile.normalize().toString());
+            logger.warn("    {}", patchFile.normalize());
             // logger.warn("Run 'mvn rewrite:run' to apply the recipes.");
 
             if (failOnDryRunResults) {
@@ -676,31 +676,28 @@ class Rewrite implements Callable<Integer> {
         if (results.isNotEmpty()) {
             for (Result result : results.generated) {
                 assert result.getAfter() != null;
-                logger.warn("Generated new file "
-                        + result.getAfter().getSourcePath().normalize()
-                        + " by:");
+                logger.warn("Generated new file {} by:", 
+                        result.getAfter().getSourcePath().normalize());
                 logRecipesThatMadeChanges(result);
             }
             for (Result result : results.deleted) {
                 assert result.getBefore() != null;
-                logger.warn("Deleted file "
-                        + result.getBefore().getSourcePath().normalize()
-                        + " by:");
+                logger.warn("Deleted file {} by:",
+                        result.getBefore().getSourcePath().normalize());
                 logRecipesThatMadeChanges(result);
             }
             for (Result result : results.moved) {
                 assert result.getAfter() != null;
                 assert result.getBefore() != null;
-                logger.warn("File has been moved from "
-                        + result.getBefore().getSourcePath().normalize() + " to "
-                        + result.getAfter().getSourcePath().normalize() + " by:");
+                logger.warn("File has been moved from {} to {} by:",
+                        result.getBefore().getSourcePath().normalize(),
+                        result.getAfter().getSourcePath().normalize());
                 logRecipesThatMadeChanges(result);
             }
             for (Result result : results.refactoredInPlace) {
                 assert result.getBefore() != null;
-                logger.warn("Changes have been made to "
-                        + result.getBefore().getSourcePath().normalize()
-                        + " by:");
+                logger.warn("Changes have been made to {} by:",
+                        result.getBefore().getSourcePath().normalize());
                 logRecipesThatMadeChanges(result);
             }
 
@@ -721,7 +718,7 @@ class Rewrite implements Callable<Integer> {
                             .normalize();
                     boolean deleteSucceeded = originalLocation.toFile().delete();
                     if (!deleteSucceeded) {
-                        throw new IOException("Unable to delete file " + originalLocation.toAbsolutePath());
+                        throw new IOException(String.format("Unable to delete file %s", originalLocation.toAbsolutePath()));
                     }
                 }
                 for (Result result : results.moved) {
@@ -731,7 +728,7 @@ class Rewrite implements Callable<Integer> {
                     Path originalLocation = results.getProjectRoot().resolve(result.getBefore().getSourcePath());
                     boolean deleteSucceeded = originalLocation.toFile().delete();
                     if (!deleteSucceeded) {
-                        throw new IOException("Unable to delete file " + originalLocation.toAbsolutePath());
+                        throw new IOException(String.format("Unable to delete file %s", originalLocation.toAbsolutePath()));
                     }
                     assert result.getAfter() != null;
                     // Ensure directories exist in case something was moved into a hitherto
@@ -834,13 +831,13 @@ class Rewrite implements Callable<Integer> {
             logger.info("");
             logger.info("Available Styles:");
             for (NamedStyles style : availableStyles) {
-                logger.info("    " + style.getName());
+                logger.info("    {}", style.getName());
             }
 
             logger.info("");
             logger.info("Active Styles:");
             for (String activeStyle : rewrite.activeStyles) {
-                logger.info("    " + activeStyle);
+                logger.info("    {}", activeStyle);
             }
 
             logger.info("");
@@ -850,10 +847,10 @@ class Rewrite implements Callable<Integer> {
             }
 
             logger.info("");
-            logger.info("Found " + availableRecipeDescriptors.size() + " available recipes and "
-                    + availableStyles.size() + " available styles.");
-            logger.info("Configured with " + activeRecipeDescriptors.size() + " active recipes and "
-                    + rewrite.activeStyles.size() + " active styles.");
+            logger.info("Found {} available recipes and {} available styles.", 
+                availableRecipeDescriptors.size(), availableStyles.size());
+            logger.info("Configured with {} active recipes and {} active styles.", 
+                activeRecipeDescriptors.size(), rewrite.activeStyles.size());
         }
 
         private void writeRecipeDescriptor(RecipeDescriptor rd, boolean verbose, int currentRecursionLevel,
@@ -861,29 +858,31 @@ class Rewrite implements Callable<Integer> {
             String indent = StringUtils.repeat("    ", indentLevel * 4);
             if (currentRecursionLevel <= recursion) {
                 if (verbose) {
-
-                    logger.info(indent + rd.getDisplayName());
-                    logger.info(indent + "    " + rd.getName());
+                    logger.info("{}{}", indent, rd.getDisplayName());
+                    logger.info("{}    {}", indent, rd.getName());
                     if (!rd.getDescription().isEmpty()) {
-                        logger.info(indent + "    " + rd.getDescription());
+                        logger.info("{}    {}", indent, rd.getDescription());
                     }
 
                     if (!rd.getOptions().isEmpty()) {
-                        logger.info(indent + "options: ");
+                        logger.info("{}options: ", indent);
                         for (OptionDescriptor od : rd.getOptions()) {
-                            logger.info(indent + "    " + od.getName() + ": " + od.getType()
-                                    + (od.isRequired() ? "!" : ""));
+                            logger.info("{}    {}: {}{}", 
+                                indent, 
+                                od.getName(), 
+                                od.getType(),
+                                od.isRequired() ? "!" : "");
                             if (od.getDescription() != null && !od.getDescription().isEmpty()) {
-                                logger.info(indent + "    " + "    " + od.getDescription());
+                                logger.info("{}        {}", indent, od.getDescription());
                             }
                         }
                     }
                 } else {
-                    logger.info(indent + rd.getName());
+                    logger.info("{}{}", indent, rd.getName());
                 }
 
                 if (!rd.getRecipeList().isEmpty() && (currentRecursionLevel + 1 <= recursion)) {
-                    logger.info(indent + "recipeList:");
+                    logger.info("{}recipeList:", indent);
                     for (RecipeDescriptor r : rd.getRecipeList()) {
                         writeRecipeDescriptor(r, verbose, currentRecursionLevel + 1, indentLevel + 1);
                     }
