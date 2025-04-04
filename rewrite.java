@@ -86,7 +86,7 @@ class Rewrite implements Callable<Integer> {
 
     // Singleton instance for static method access
     private static final Rewrite INSTANCE = new Rewrite();
-    
+
     // SLF4J Logger
     private static final Logger logger = LoggerFactory.getLogger(Rewrite.class);
 
@@ -146,7 +146,10 @@ class Rewrite implements Callable<Integer> {
         System.setProperty("org.slf4j.simpleLogger.levelInBrackets", "true");
         System.setProperty("org.slf4j.simpleLogger.showLogName", "false");
         System.setProperty("org.slf4j.simpleLogger.showDateTime", "false");
-        
+
+        // Suppress warnings from ReloadableJava11Parser
+        System.setProperty("org.slf4j.simpleLogger.log.org.openrewrite.java.isolated.ReloadableJava11Parser", "ERROR");
+
         int exitCode = new CommandLine(new Rewrite()).execute(args);
         System.exit(exitCode);
     }
