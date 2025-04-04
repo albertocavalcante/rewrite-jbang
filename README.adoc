@@ -3,7 +3,7 @@
 As an experiment from asking https://github.com/openrewrite/rewrite/discussions/834
 I made this little script which is 97% same as the code found in https://github.com/openrewrite/rewrite-maven-plugin.
 
-It lets you run OpenRewrite on any kind of project.
+It lets you run OpenRewrite on any kind of project. The script is now compatible with OpenRewrite v8.49.0.
 
 How to run: 
 
@@ -34,6 +34,7 @@ Limitations:
 
 * Use `--dry-run` to see proposed changes and generate a patch file (default: `./rewrite/rewrite.patch`).
 * Remove `--dry-run` (or set to `false`) to apply changes directly.
+* When recipe files make changes, verify them before committing.
 
 == Key Options
 
@@ -61,6 +62,29 @@ If `true` and `--dry-run` is active, the script will exit with an error code if 
 `--report <path>`::
 Directory where the `rewrite.patch` file is written during a dry run. Defaults to `./rewrite`.
 
+== Common Recipe Examples
+
+OpenRewrite provides many useful recipes. Here are some popular ones:
+
+[source,sh]
+----
+# Format Java code
+rewrite --recipes org.openrewrite.java.format.AutoFormat
+
+# Fix common code issues
+rewrite --recipes org.openrewrite.java.cleanup.CommonStaticAnalysis
+
+# Update dependencies
+rewrite --recipes org.openrewrite.java.dependencies.ChangeDependency \
+  --oldGroupId com.google.guava --oldArtifactId guava --newVersion 31.1-jre
+
+# Sort Maven dependencies
+rewrite --recipes org.openrewrite.maven.SortDependencies
+
+# Migrate JUnit 4 to JUnit 5
+rewrite --recipes org.openrewrite.java.testing.junit5.JUnit4to5Migration
+----
+
 == Limitations
 
 * Does not (yet) offer to automatically resolve dependencies from build files (use `--classpath` for manual provision).
@@ -70,3 +94,27 @@ Directory where the `rewrite.patch` file is written during a dry run. Defaults t
 
 * Uses JBang for execution and dependency management.
 * Dependencies are declared via `//DEPS` comments in `rewrite.java`.
+* Current version is compatible with OpenRewrite v8.49.0.
+* For incremental upgrade information, see the `rules.md` file in this repository.
+
+== Troubleshooting
+
+=== Recipe Changes But Doesn't Apply
+
+If a recipe indicates it will make changes but doesn't apply them, check if:
+
+* You're using `--dry-run` (default is `false`)
+* You have write permissions to the files
+
+=== Classpath Issues
+
+If you encounter type resolution problems:
+
+* Ensure you're providing the correct `--classpath` with all necessary dependencies
+* For Maven projects, you can generate the classpath with: `mvn dependency:build-classpath -Dmdep.outputFile=cp.txt`
+* For Gradle projects: `gradle -q printClasspath > cp.txt`
+
+=== Compilation Errors
+
+* Ensure your JDK version is compatible with the project you're modifying
+* Some recipes require specific Java language features
