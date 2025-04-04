@@ -18,8 +18,6 @@
 
 
 
-import static java.lang.System.err;
-import static java.lang.System.out;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptySet;
 import static java.util.stream.Collectors.joining;
@@ -77,19 +75,31 @@ import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
+// Additional imports for SLF4J
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 @Command(name = "rewrite", mixinStandardHelpOptions = true, version = "rewrite 0.2", description = "rewrite made with jbang", subcommands = Rewrite.RewriteDiscover.class)
 class Rewrite implements Callable<Integer> {
 
     private static final String RECIPE_NOT_FOUND_EXCEPTION_MSG = "Could not find recipe '%s' among available recipes";
-    
+
     // Singleton instance for static method access
     private static final Rewrite INSTANCE = new Rewrite();
-    
+
+    // SLF4J Logger
+    private static final Logger logger = LoggerFactory.getLogger(Rewrite.class);
+
     public static Rewrite getInstance() {
         return INSTANCE;
     }
 
-    @Option(names = {"--baseDir", "--base-dir"}, description = "Base directory for the project. Defaults to current directory.")
+    public static Logger getLogger() {
+        return logger;
+    }
+
+    @Option(names = {"--baseDir",
+            "--base-dir"}, description = "Base directory for the project. Defaults to current directory.")
     private String baseDirPath = ".";
 
     private Path baseDir() {
@@ -158,12 +168,15 @@ class Rewrite implements Callable<Integer> {
         }
 
         RawRepositories rawRepositories = new RawRepositories();
-        List<RawRepositories.Repository> transformedRepositories = repositoriesToMap.stream().map(r -> new RawRepositories.Repository(
+        List<RawRepositories.Repository> transformedRepositories = repositoriesToMap
+                .stream().map(r -> new RawRepositories.Repository(
                 r.getId(),
                 r.getUrl(),
-                r.getReleases() == null ? null : new RawRepositories.ArtifactPolicy(Boolean.toString(r.getReleases().isEnabled())),
-                r.getSnapshots() == null ? null : new RawRepositories.ArtifactPolicy(Boolean.toString(r.getSnapshots().isEnabled()))
-        )).toList();
+                r.getReleases() == null ? null
+                        : new RawRepositories.ArtifactPolicy(Boolean.toString(r.getReleases().isEnabled())),
+                r.getSnapshots() == null ? null
+                        : new RawRepositories.ArtifactPolicy(Boolean.toString(r.getSnapshots().isEnabled()))))
+                .toList();
         rawRepositories.setRepositories(transformedRepositories);
         return rawRepositories;
     }
@@ -180,18 +193,16 @@ class Rewrite implements Callable<Integer> {
         MavenSettings.Profiles profiles = new MavenSettings.Profiles();
         profiles.setProfiles(
                 mer.getProfiles().stream().map(p -> new MavenSettings.Profile(
-                                p.getId(),
-                                p.getActivation() == null ? null : new ProfileActivation(
-                                        p.getActivation().isActiveByDefault(),
-                                        p.getActivation().getJdk(),
-                                        p.getActivation().getProperty() == null ? null : new ProfileActivation.Property(
-                                                p.getActivation().getProperty().getName(),
-                                                p.getActivation().getProperty().getValue()
-                                        )
-                                ),
-                                buildRawRepositories(p.getRepositories())
-                        )
-                ).toList());
+                        p.getId(),
+                        p.getActivation() == null ? null
+                                : new ProfileActivation(
+                                p.getActivation().isActiveByDefault(),
+                                p.getActivation().getJdk(),
+                                p.getActivation().getProperty() == null ? null
+                                        : new ProfileActivation.Property(
+                                        p.getActivation().getProperty().getName(),
+                                        p.getActivation().getProperty().getValue())),
+                        buildRawRepositories(p.getRepositories()))).toList());
 
         MavenSettings.ActiveProfiles activeProfiles = new MavenSettings.ActiveProfiles();
         activeProfiles.setActiveProfiles(mer.getActiveProfiles());
@@ -203,9 +214,7 @@ class Rewrite implements Callable<Integer> {
                         m.getUrl(),
                         m.getMirrorOf(),
                         null,
-                        null
-                )).toList()
-        );
+                        null)).toList());
 
         MavenSettings.Servers servers = new MavenSettings.Servers();
         servers.setServers(emptyList());
@@ -230,7 +239,8 @@ class Rewrite implements Callable<Integer> {
         mavenExecutionContext.setMavenSettings(settings);
 
         if (!settings.getActiveProfiles().getActiveProfiles().isEmpty()) {
-            mavenParserBuilder.activeProfiles(settings.getActiveProfiles().getActiveProfiles().toArray(new String[0])); // Use String[0]
+            mavenParserBuilder.activeProfiles(settings.getActiveProfiles().getActiveProfiles().toArray(new String[0])); // Use
+            // String[0]
         }
 
         // Parse the explicitly found pom.xml - Correct variable type
@@ -266,7 +276,7 @@ class Rewrite implements Callable<Integer> {
                             result.add(file.toRealPath().normalize());
                         } catch (IOException e) {
                             // Handle exception during path normalization
-                            Rewrite.getInstance().warn("Could not normalize path: " + file + " - " + e.getMessage());
+                            Rewrite.getLogger().warn("Could not normalize path: {} - {}", file, e.getMessage());
                         }
                     }
                     return FileVisitResult.CONTINUE;
@@ -275,7 +285,7 @@ class Rewrite implements Callable<Integer> {
                 @Override
                 public FileVisitResult visitFileFailed(Path file, IOException exc) throws IOException {
                     // Handle errors visiting files (e.g. permission issues)
-                    Rewrite.getInstance().warn("Failed to visit file: " + file + " - " + exc.getMessage());
+                    Rewrite.getLogger().warn("Failed to visit file: {} - {}", file, exc.getMessage());
                     return FileVisitResult.CONTINUE;
                 }
             });
@@ -311,7 +321,7 @@ class Rewrite implements Callable<Integer> {
                         })
                         .forEach(resourceFiles::add);
             } catch (IOException e) {
-                Rewrite.getInstance().warn("Could not scan directory for resources: " + sourceRoot + " - " + e.getMessage());
+                Rewrite.getLogger().warn("Could not scan directory for resources: {} - {}", sourceRoot, e.getMessage());
             }
         }
         return resourceFiles;
@@ -357,7 +367,8 @@ class Rewrite implements Callable<Integer> {
         var env = environment();
 
         if (activeRecipes.isEmpty()) {
-            getLog().warn("No recipes specified. Activate a recipe on the command line with '--recipes com.fully.qualified.RecipeClassName'");
+            getLog().warn(
+                    "No recipes specified. Activate a recipe on the command line with '--recipes com.fully.qualified.RecipeClassName'");
             return new ResultsContainer(baseDir(), emptyList());
         }
 
@@ -393,7 +404,8 @@ class Rewrite implements Callable<Integer> {
 
         if (!failedValidations.isEmpty()) {
             failedValidations.forEach(failedValidation -> error(
-                    "Recipe validation error in " + failedValidation.getProperty() + ": " + failedValidation.getMessage(),
+                    "Recipe validation error in " + failedValidation.getProperty() + ": "
+                            + failedValidation.getMessage(),
                     failedValidation.getException()));
             if (failOnInvalidActiveRecipes) {
                 throw new IllegalStateException(
@@ -428,13 +440,13 @@ class Rewrite implements Callable<Integer> {
                         .styles(styles)
                         .classpath(classpath)
                         .logCompilationWarningsAndErrors(true).build().parse(javaSources, baseDir(), ctx)
-                        .toList()
-        );
+                        .toList());
         info(sourceFiles.size() + " java files parsed.");
 
         Set<Path> resources = new HashSet<>();
         if (discoverResources) {
-            info("Discovering resource files (yml, yaml, properties, xml, toml) in: " + javaSourcePaths.stream().collect(joining(", ")));
+            info("Discovering resource files (yml, yaml, properties, xml, toml) in: "
+                    + javaSourcePaths.stream().collect(joining(", ")));
             resources = listResourceFiles(javaSourcePaths);
             info("Found " + resources.size() + " resource files.");
         } else {
@@ -452,13 +464,11 @@ class Rewrite implements Callable<Integer> {
                 // Collect Stream<SourceFile> to List
                 sourceFiles.addAll(
                         new YamlParser().parse(yamlPaths, baseDir(), ctx)
-                                .toList()
-                );
+                                .toList());
                 info("Parsed " + yamlPaths.size() + " YAML files.");
             } else {
                 info("No YAML files found to parse.");
             }
-
 
             info("Parsing properties files...");
             List<Path> propertiesPaths = resources.stream()
@@ -467,35 +477,33 @@ class Rewrite implements Callable<Integer> {
                 // Collect Stream<SourceFile> to List
                 sourceFiles.addAll(
                         new PropertiesParser().parse(propertiesPaths, baseDir(), ctx)
-                                .toList()
-                );
+                                .toList());
                 info("Parsed " + propertiesPaths.size() + " properties files.");
             } else {
                 info("No properties files found to parse.");
             }
 
-
             info("Parsing XML files...");
-            List<Path> xmlPaths = resources.stream().filter(it -> it.getFileName().toString().endsWith(".xml")).toList();
+            List<Path> xmlPaths = resources.stream().filter(it -> it.getFileName().toString().endsWith(".xml"))
+                    .toList();
             if (!xmlPaths.isEmpty()) {
                 // Collect Stream<SourceFile> to List
                 sourceFiles.addAll(
                         new XmlParser().parse(xmlPaths, baseDir(), ctx)
-                                .toList()
-                );
+                                .toList());
                 info("Parsed " + xmlPaths.size() + " XML files.");
             } else {
                 info("No XML files found to parse.");
             }
 
             info("Parsing TOML files...");
-            List<Path> tomlPaths = resources.stream().filter(it -> it.getFileName().toString().endsWith(".toml")).toList();
+            List<Path> tomlPaths = resources.stream().filter(it -> it.getFileName().toString().endsWith(".toml"))
+                    .toList();
             if (!tomlPaths.isEmpty()) {
                 // Collect Stream<SourceFile> to List
                 sourceFiles.addAll(
                         new TomlParser().parse(tomlPaths, baseDir(), ctx)
-                                .toList()
-                );
+                                .toList());
                 info("Parsed " + tomlPaths.size() + " TOML files.");
             } else {
                 info("No TOML files found to parse.");
@@ -562,7 +570,8 @@ class Rewrite implements Callable<Integer> {
     }
 
     // Updated Source URL
-    // Source: https://sourcegraph.com/github.com/openrewrite/rewrite-maven-plugin@v5.40.0/-/blob/src/main/java/org/openrewrite/maven/AbstractRewriteBaseRunMojo.java?L461-469
+    // Source:
+    // https://sourcegraph.com/github.com/openrewrite/rewrite-maven-plugin@v5.40.0/-/blob/src/main/java/org/openrewrite/maven/AbstractRewriteBaseRunMojo.java?L461-469
     protected void logRecipesThatMadeChanges(Result result) {
         String indent = "    ";
         String prefix = "    ";
@@ -573,17 +582,17 @@ class Rewrite implements Callable<Integer> {
     }
 
     // Updated Source URL
-    // Source: https://sourcegraph.com/github.com/openrewrite/rewrite-maven-plugin@v5.40.0/-/blob/src/main/java/org/openrewrite/maven/AbstractRewriteBaseRunMojo.java?L471-489
+    // Source:
+    // https://sourcegraph.com/github.com/openrewrite/rewrite-maven-plugin@v5.40.0/-/blob/src/main/java/org/openrewrite/maven/AbstractRewriteBaseRunMojo.java?L471-489
     private void logRecipe(RecipeDescriptor rd, String prefix) {
         StringBuilder recipeString = new StringBuilder(prefix + rd.getName());
         if (!rd.getOptions().isEmpty()) {
             String opts = rd.getOptions().stream().map(option -> {
-                        if (option.getValue() != null) {
-                            return option.getName() + "=" + option.getValue();
-                        }
-                        return null;
-                    }
-            ).filter(Objects::nonNull).collect(joining(", "));
+                if (option.getValue() != null) {
+                    return option.getName() + "=" + option.getValue();
+                }
+                return null;
+            }).filter(Objects::nonNull).collect(joining(", "));
             if (!opts.isEmpty()) {
                 recipeString.append(": {").append(opts).append("}");
             }
@@ -699,14 +708,16 @@ class Rewrite implements Callable<Integer> {
                 }
                 for (Result result : results.deleted) {
                     assert result.getBefore() != null;
-                    Path originalLocation = results.getProjectRoot().resolve(result.getBefore().getSourcePath()).normalize();
+                    Path originalLocation = results.getProjectRoot().resolve(result.getBefore().getSourcePath())
+                            .normalize();
                     boolean deleteSucceeded = originalLocation.toFile().delete();
                     if (!deleteSucceeded) {
                         throw new IOException("Unable to delete file " + originalLocation.toAbsolutePath());
                     }
                 }
                 for (Result result : results.moved) {
-                    // Should we try to use git to move the file first, and only if that fails fall back to this?
+                    // Should we try to use git to move the file first, and only if that fails fall
+                    // back to this?
                     assert result.getBefore() != null;
                     Path originalLocation = results.getProjectRoot().resolve(result.getBefore().getSourcePath());
                     boolean deleteSucceeded = originalLocation.toFile().delete();
@@ -714,10 +725,11 @@ class Rewrite implements Callable<Integer> {
                         throw new IOException("Unable to delete file " + originalLocation.toAbsolutePath());
                     }
                     assert result.getAfter() != null;
-                    // Ensure directories exist in case something was moved into a hitherto non-existent package
+                    // Ensure directories exist in case something was moved into a hitherto
+                    // non-existent package
                     Path afterLocation = results.getProjectRoot().resolve(result.getAfter().getSourcePath());
                     File parentDir = afterLocation.toFile().getParentFile();
-                    //noinspection ResultOfMethodCallIgnored
+                    // noinspection ResultOfMethodCallIgnored
                     parentDir.mkdirs();
                     try (BufferedWriter sourceFileWriter = Files.newBufferedWriter(afterLocation)) {
                         Charset charset = result.getAfter().getCharset();
@@ -739,7 +751,6 @@ class Rewrite implements Callable<Integer> {
         }
     }
 
-
     @Override
     public Integer call() { // your business logic goes here...
 
@@ -753,29 +764,23 @@ class Rewrite implements Callable<Integer> {
     }
 
     void info(String msg) {
-        out.println("[INFO] " + msg);
+        logger.info(msg);
     }
 
     void warn(String msg) {
-        out.println("[WARN] " + msg);
+        logger.warn(msg);
     }
 
     void warn(String msg, Throwable t) {
-        err.println("[WARN] " + msg);
-        if (t != null) {
-            t.printStackTrace(err);
-        }
+        logger.warn(msg, t);
     }
 
     void error(String msg) {
-        error(msg, null);
+        logger.error(msg);
     }
 
     void error(String msg, Throwable t) {
-        err.println("[ERROR] " + msg);
-        if (t != null) {
-            t.printStackTrace(err);
-        }
+        logger.error(msg, t);
     }
 
     public static RecipeDescriptor getRecipeDescriptor(String recipe, Collection<RecipeDescriptor> recipeDescriptors) {
@@ -784,7 +789,6 @@ class Rewrite implements Callable<Integer> {
                 .findAny()
                 .orElseThrow(() -> new IllegalStateException(String.format(RECIPE_NOT_FOUND_EXCEPTION_MSG, recipe)));
     }
-
 
     @CommandLine.Command(name = "discover")
     static class RewriteDiscover implements Callable<Integer> {
@@ -800,13 +804,15 @@ class Rewrite implements Callable<Integer> {
         String recipe;
 
         /**
-         * Whether to display recipe details such as displayName, description, and configuration options.
+         * Whether to display recipe details such as displayName, description, and
+         * configuration options.
          */
         @Option(names = "detail", defaultValue = "false")
         boolean detail;
 
         /**
-         * The maximum level of recursion to display recipe descriptors under recipeList.
+         * The maximum level of recursion to display recipe descriptors under
+         * recipeList.
          */
         @Option(names = "recursion", defaultValue = "0")
         int recursion;
@@ -833,7 +839,8 @@ class Rewrite implements Callable<Integer> {
             return 0;
         }
 
-        private void writeDiscovery(Collection<RecipeDescriptor> availableRecipeDescriptors, Collection<RecipeDescriptor> activeRecipeDescriptors, Collection<NamedStyles> availableStyles) {
+        private void writeDiscovery(Collection<RecipeDescriptor> availableRecipeDescriptors,
+                                    Collection<RecipeDescriptor> activeRecipeDescriptors, Collection<NamedStyles> availableStyles) {
             getLog().info("Available Recipes:");
             for (RecipeDescriptor recipeDescriptor : availableRecipeDescriptors) {
                 writeRecipeDescriptor(recipeDescriptor, detail, 0, 1);
@@ -858,11 +865,14 @@ class Rewrite implements Callable<Integer> {
             }
 
             getLog().info("");
-            getLog().info("Found " + availableRecipeDescriptors.size() + " available recipes and " + availableStyles.size() + " available styles.");
-            getLog().info("Configured with " + activeRecipeDescriptors.size() + " active recipes and " + rewrite.activeStyles.size() + " active styles.");
+            getLog().info("Found " + availableRecipeDescriptors.size() + " available recipes and "
+                    + availableStyles.size() + " available styles.");
+            getLog().info("Configured with " + activeRecipeDescriptors.size() + " active recipes and "
+                    + rewrite.activeStyles.size() + " active styles.");
         }
 
-        private void writeRecipeDescriptor(RecipeDescriptor rd, boolean verbose, int currentRecursionLevel, int indentLevel) {
+        private void writeRecipeDescriptor(RecipeDescriptor rd, boolean verbose, int currentRecursionLevel,
+                                           int indentLevel) {
             String indent = StringUtils.repeat("    ", indentLevel * 4);
             if (currentRecursionLevel <= recursion) {
                 if (verbose) {
@@ -876,7 +886,8 @@ class Rewrite implements Callable<Integer> {
                     if (!rd.getOptions().isEmpty()) {
                         getLog().info(indent + "options: ");
                         for (OptionDescriptor od : rd.getOptions()) {
-                            getLog().info(indent + "    " + od.getName() + ": " + od.getType() + (od.isRequired() ? "!" : ""));
+                            getLog().info(indent + "    " + od.getName() + ": " + od.getType()
+                                    + (od.isRequired() ? "!" : ""));
                             if (od.getDescription() != null && !od.getDescription().isEmpty()) {
                                 getLog().info(indent + "    " + "    " + od.getDescription());
                             }
@@ -898,7 +909,6 @@ class Rewrite implements Callable<Integer> {
                 }
             }
         }
-
 
     }
 
