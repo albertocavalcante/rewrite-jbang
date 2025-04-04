@@ -82,7 +82,12 @@ class rewrite implements Callable<Integer> {
 
     private static final String RECIPE_NOT_FOUND_EXCEPTION_MSG = "Could not find recipe '%s' among available recipes";
 
-    private final Path baseDir = Path.of(".").toAbsolutePath(); // TODO: proper basedir?
+    @Option(names = {"--baseDir", "--base-dir"}, description = "Base directory for the project. Defaults to current directory.")
+    private String baseDirPath = ".";
+
+    private Path baseDir() {
+        return Path.of(baseDirPath).toAbsolutePath().normalize();
+    }
 
     @Option(names = "--recipes", split = ",")
     Set<String> activeRecipes = emptySet();
@@ -203,10 +208,10 @@ class rewrite implements Callable<Integer> {
 
     public Xml.Document parseMaven(ExecutionContext ctx) {
         // Explicitly look for pom.xml in the base directory
-        Path pomPath = baseDir.resolve("pom.xml");
+        Path pomPath = baseDir().resolve("pom.xml");
         if (!Files.exists(pomPath)) {
             // Optional: Log if no pom.xml is found at the expected location
-            // getLog().info("No pom.xml found in base directory: " + baseDir);
+            // getLog().info("No pom.xml found in base directory: " + baseDir());
             return null; // Return null if pom.xml doesn't exist
         }
         List<Path> pomToParse = Collections.singletonList(pomPath);
@@ -224,7 +229,7 @@ class rewrite implements Callable<Integer> {
         // Parse the explicitly found pom.xml - Correct variable type
         List<SourceFile> parsedPoms = mavenParserBuilder
                 .build()
-                .parse(pomToParse, baseDir, ctx)
+                .parse(pomToParse, baseDir(), ctx)
                 .toList();
 
         // Find the Xml.Document within the SourceFile stream/list
@@ -346,7 +351,7 @@ class rewrite implements Callable<Integer> {
 
         if (activeRecipes.isEmpty()) {
             getLog().warn("No recipes specified. Activate a recipe on the command line with '--recipes com.fully.qualified.RecipeClassName'");
-            return new ResultsContainer(baseDir, emptyList());
+            return new ResultsContainer(baseDir(), emptyList());
         }
 
         var recipe = env.activateRecipes(activeRecipes);
@@ -364,7 +369,7 @@ class rewrite implements Callable<Integer> {
                 recipe = env.activateRecipes(names);
             } else {
                 getLog().warn("No matching recipes found for specified active recipes: " + activeRecipes);
-                return new ResultsContainer(baseDir, emptyList());
+                return new ResultsContainer(baseDir(), emptyList());
             }
         }
 
@@ -415,7 +420,7 @@ class rewrite implements Callable<Integer> {
                 JavaParser.fromJavaVersion()
                         .styles(styles)
                         .classpath(classpath)
-                        .logCompilationWarningsAndErrors(true).build().parse(javaSources, baseDir, ctx)
+                        .logCompilationWarningsAndErrors(true).build().parse(javaSources, baseDir(), ctx)
                         .toList()
         );
         info(sourceFiles.size() + " java files parsed.");
@@ -439,7 +444,7 @@ class rewrite implements Callable<Integer> {
             if (!yamlPaths.isEmpty()) {
                 // Collect Stream<SourceFile> to List
                 sourceFiles.addAll(
-                        new YamlParser().parse(yamlPaths, baseDir, ctx)
+                        new YamlParser().parse(yamlPaths, baseDir(), ctx)
                                 .toList()
                 );
                 info("Parsed " + yamlPaths.size() + " YAML files.");
@@ -454,7 +459,7 @@ class rewrite implements Callable<Integer> {
             if (!propertiesPaths.isEmpty()) {
                 // Collect Stream<SourceFile> to List
                 sourceFiles.addAll(
-                        new PropertiesParser().parse(propertiesPaths, baseDir, ctx)
+                        new PropertiesParser().parse(propertiesPaths, baseDir(), ctx)
                                 .toList()
                 );
                 info("Parsed " + propertiesPaths.size() + " properties files.");
@@ -468,7 +473,7 @@ class rewrite implements Callable<Integer> {
             if (!xmlPaths.isEmpty()) {
                 // Collect Stream<SourceFile> to List
                 sourceFiles.addAll(
-                        new XmlParser().parse(xmlPaths, baseDir, ctx)
+                        new XmlParser().parse(xmlPaths, baseDir(), ctx)
                                 .toList()
                 );
                 info("Parsed " + xmlPaths.size() + " XML files.");
@@ -481,7 +486,7 @@ class rewrite implements Callable<Integer> {
             if (!tomlPaths.isEmpty()) {
                 // Collect Stream<SourceFile> to List
                 sourceFiles.addAll(
-                        new TomlParser().parse(tomlPaths, baseDir, ctx)
+                        new TomlParser().parse(tomlPaths, baseDir(), ctx)
                                 .toList()
                 );
                 info("Parsed " + tomlPaths.size() + " TOML files.");
@@ -501,7 +506,7 @@ class rewrite implements Callable<Integer> {
                 sourceFiles.add(pomAst);
                 info("Parsed Maven POM: " + pomAst.getSourcePath());
             } else {
-                info("No Maven POM found or parsed in " + baseDir); // Updated log
+                info("No Maven POM found or parsed in " + baseDir()); // Updated log
             }
         } catch (Exception e) {
             // Catch potential exceptions during POM parsing if it fails
@@ -524,7 +529,7 @@ class rewrite implements Callable<Integer> {
                 })
                 .toList();
 
-        return new ResultsContainer(baseDir, filteredResults);
+        return new ResultsContainer(baseDir(), filteredResults);
     }
 
     rewrite getLog() {

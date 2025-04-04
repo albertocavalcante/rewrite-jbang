@@ -44,6 +44,9 @@ Comma-separated list of fully qualified recipe names to activate. Example: `org.
 `--styles <list>`::
 Comma-separated list of style configuration names to activate.
 
+`--base-dir <path>`::
+Base directory for the project. All paths are resolved relative to this directory. Defaults to the current directory.
+
 `--javaSources <list>`::
 Comma-separated list of directories containing Java source files to scan. Defaults to `.`
 
