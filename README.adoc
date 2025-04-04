@@ -32,5 +32,41 @@ rewrite --recipes org.openrewrite.staticanalysis.CodeCleanup,org.openrewrite.jav
 
 Limitations: 
 
-* Does not (yet) offer to refer to dependencies
-* Totally just slammed together code a slow sunday morning! 
+* Use `--dry-run` to see proposed changes and generate a patch file (default: `./rewrite/rewrite.patch`).
+* Remove `--dry-run` (or set to `false`) to apply changes directly.
+
+== Key Options
+
+`--recipes <list>`::
+Comma-separated list of fully qualified recipe names to activate. Example: `org.openrewrite.java.format.AutoFormat`
+
+`--styles <list>`::
+Comma-separated list of style configuration names to activate.
+
+`--javaSources <list>`::
+Comma-separated list of directories containing Java source files to scan. Defaults to `.`
+
+`--discover-resources <boolean>`::
+Attempt to discover resource files (`.yml`, `.yaml`, `.properties`, `.xml`) within the `--javaSources` directories. Defaults to `true`. Set to `false` to disable scanning for these files.
+
+`--classpath <string>`::
+Specify the classpath needed for type resolution in Java recipes. Use the system's path separator (e.g., `:` for Linux/macOS, `;` for Windows). Example: `--classpath "lib/dep1.jar:target/classes"`. Crucial for recipes that need to understand types from dependencies.
+
+`--dry-run <boolean>`::
+If `true`, lists changes and outputs a patch file instead of modifying files. Defaults to `false`.
+
+`--fail-on-dry-run <boolean>`::
+If `true` and `--dry-run` is active, the script will exit with an error code if any changes are detected. Defaults to `false`.
+
+`--report <path>`::
+Directory where the `rewrite.patch` file is written during a dry run. Defaults to `./rewrite`.
+
+== Limitations
+
+* Does not (yet) offer to automatically resolve dependencies from build files (use `--classpath` for manual provision).
+* Totally just slammed together code a slow sunday morning!
+
+== Development Notes
+
+* Uses JBang for execution and dependency management.
+* Dependencies are declared via `//DEPS` comments in `rewrite.java`.

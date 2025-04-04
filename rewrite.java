@@ -89,6 +89,9 @@ class rewrite implements Callable<Integer> {
     @Option(names = "--discover-resources", defaultValue = "true", description = "Attempt to discover resource files (yml, xml, properties) in source directories.")
     boolean discoverResources;
 
+    @Option(names = "--classpath", description = "Specify the classpath for type resolution, using the system path separator.", split = "${sys:path.separator}")
+    List<String> classpathElements = emptyList();
+
     @Option(names = {"--failOnInvalidActiveRecipes", "--fail-on-invalid-recipes"}, defaultValue = "false")
     boolean failOnInvalidActiveRecipes;
 
@@ -355,11 +358,26 @@ class rewrite implements Callable<Integer> {
         ExecutionContext ctx = executionContext();
         info("Parsing Java files found in: " + javaSourcePaths.stream().collect(joining(", ")));
 
-        List<SourceFile> sourceFiles = new ArrayList<>(JavaParser.fromJavaVersion()
-                .styles(styles)
-                .classpath(new HashSet<String>().stream().distinct().map(java.nio.file.Paths::get).collect(toList()))
-                .logCompilationWarningsAndErrors(true).build().parse(javaSources, baseDir, ctx));
+        // Prepare classpath
+        List<Path> classpath = emptyList();
+        if (classpathElements != null && !classpathElements.isEmpty()) {
+            info("Using provided classpath elements: " + classpathElements.size());
+            classpath = classpathElements.stream()
+                    .map(Paths::get)
+                    .collect(toList());
+        } else {
+            info("No explicit classpath provided. Type resolution for Java recipes might be limited.");
+            // Consider adding a warning or a way to auto-detect later if needed
+        }
 
+        // Initialize sourceFiles list here
+        List<SourceFile> sourceFiles = new ArrayList<>();
+
+        // Parse Java
+        sourceFiles.addAll(JavaParser.fromJavaVersion()
+                .styles(styles)
+                .classpath(classpath) // Use the resolved classpath
+                .logCompilationWarningsAndErrors(true).build().parse(javaSources, baseDir, ctx));
         info(sourceFiles.size() + " java files parsed.");
 
         Set<Path> resources = new HashSet<>();
