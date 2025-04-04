@@ -5,7 +5,7 @@
 //DEPS org.slf4j:slf4j-nop:2.0.16
 //DEPS org.apache.maven:maven-core:3.9.9
 
-//DEPS org.openrewrite:rewrite-bom:8.42.4@pom
+//DEPS org.openrewrite:rewrite-bom:8.43.0@pom
 //DEPS org.openrewrite:rewrite-core
 //DEPS org.openrewrite:rewrite-java
 //DEPS org.openrewrite:rewrite-java-8
@@ -13,6 +13,7 @@
 //DEPS org.openrewrite:rewrite-xml
 //DEPS org.openrewrite:rewrite-maven
 //DEPS org.openrewrite:rewrite-properties
+//DEPS org.openrewrite:rewrite-toml
 //DEPS org.openrewrite:rewrite-yaml
 
 
@@ -67,6 +68,7 @@ import org.openrewrite.maven.internal.RawRepositories;
 import org.openrewrite.maven.tree.ProfileActivation;
 import org.openrewrite.properties.PropertiesParser;
 import org.openrewrite.style.NamedStyles;
+import org.openrewrite.toml.TomlParser;
 import org.openrewrite.xml.XmlParser;
 import org.openrewrite.xml.tree.Xml;
 import org.openrewrite.yaml.YamlParser;
@@ -275,7 +277,7 @@ class rewrite implements Callable<Integer> {
 
     private static Set<Path> listResourceFiles(List<String> sourceDirectories) {
         Set<Path> resourceFiles = new HashSet<>();
-        Set<String> resourceExtensions = Set.of(".yml", ".yaml", ".properties", ".xml");
+        Set<String> resourceExtensions = Set.of(".yml", ".yaml", ".properties", ".xml", ".toml");
 
         for (String sourceDir : sourceDirectories) {
             File sourceDirectoryFile = new File(sourceDir);
@@ -421,7 +423,7 @@ class rewrite implements Callable<Integer> {
 
         Set<Path> resources = new HashSet<>();
         if(discoverResources) {
-            info("Discovering resource files (yml, yaml, properties, xml) in: " + javaSourcePaths.stream().collect(joining(", ")));
+            info("Discovering resource files (yml, yaml, properties, xml, toml) in: " + javaSourcePaths.stream().collect(joining(", ")));
             resources = listResourceFiles(javaSourcePaths);
             info("Found " + resources.size() + " resource files.");
         } else {
@@ -474,8 +476,22 @@ class rewrite implements Callable<Integer> {
             } else {
                  info("No XML files found to parse.");
             }
+
+            info("Parsing TOML files...");
+            List<Path> tomlPaths = resources.stream().filter(it -> it.getFileName().toString().endsWith(".toml")).toList();
+            if (!tomlPaths.isEmpty()) {
+                // Collect Stream<SourceFile> to List
+                sourceFiles.addAll(
+                    new TomlParser().parse(tomlPaths, baseDir, ctx)
+                    .toList()
+                );
+                info("Parsed " + tomlPaths.size() + " TOML files.");
+            } else {
+                 info("No TOML files found to parse.");
+            }
+
         } else {
-             info("Skipping parsing of YAML, Properties, and XML files as no resources were discovered or discovery was disabled.");
+             info("Skipping parsing of YAML, Properties, XML, and TOML files as no resources were discovered or discovery was disabled.");
         }
 
         // Always attempt to parse Maven POM (typically pom.xml at baseDir)
