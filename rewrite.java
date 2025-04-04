@@ -163,7 +163,7 @@ class Rewrite implements Callable<Integer> {
 
     protected ExecutionContext executionContext() {
         return new InMemoryExecutionContext(t -> {
-            getLog().warn("Error during recipe execution: " + t.getMessage(), t);
+            logger.warn("Error during recipe execution: " + t.getMessage(), t);
         });
     }
 
@@ -380,7 +380,7 @@ class Rewrite implements Callable<Integer> {
         var env = environment();
 
         if (activeRecipes.isEmpty()) {
-            getLog().warn(
+            logger.warn(
                     "No recipes specified. Activate a recipe on the command line with '--recipes com.fully.qualified.RecipeClassName'");
             return new ResultsContainer(baseDir(), emptyList());
         }
@@ -396,10 +396,10 @@ class Rewrite implements Callable<Integer> {
                 var names = matchingRecipeDescriptors.stream()
                         .map(rd -> rd.getName())
                         .collect(java.util.stream.Collectors.toSet());
-                getLog().info("Activating recipes (fallback): " + names);
+                logger.info("Activating recipes (fallback): " + names);
                 recipe = env.activateRecipes(names);
             } else {
-                getLog().warn("No matching recipes found for specified active recipes: " + activeRecipes);
+                logger.warn("No matching recipes found for specified active recipes: " + activeRecipes);
                 return new ResultsContainer(baseDir(), emptyList());
             }
         }
@@ -407,16 +407,16 @@ class Rewrite implements Callable<Integer> {
         List<NamedStyles> styles;
         styles = env.activateStyles(activeStyles);
 
-        info("");
+        logger.info("");
 
         ExecutionContext ctx = executionContext();
 
-        info("Validating active recipes...");
+        logger.info("Validating active recipes...");
         Validated validated = recipe.validate(ctx);
         List<Validated.Invalid> failedValidations = validated.failures();
 
         if (!failedValidations.isEmpty()) {
-            failedValidations.forEach(failedValidation -> error(
+            failedValidations.forEach(failedValidation -> logger.error(
                     "Recipe validation error in " + failedValidation.getProperty() + ": "
                             + failedValidation.getMessage(),
                     failedValidation.getException()));
@@ -424,24 +424,24 @@ class Rewrite implements Callable<Integer> {
                 throw new IllegalStateException(
                         "Recipe validation errors detected as part of one or more activeRecipe(s). Please check error logs.");
             } else {
-                error("Recipe validation errors detected as part of one or more activeRecipe(s). Execution will continue regardless.");
+                logger.error("Recipe validation errors detected as part of one or more activeRecipe(s). Execution will continue regardless.");
             }
         }
 
         List<Path> javaSources = new ArrayList<>();
         javaSourcePaths.forEach(path -> javaSources.addAll(listJavaSources(path)));
 
-        info("Parsing Java files found in: " + javaSourcePaths.stream().collect(joining(", ")));
+        logger.info("Parsing Java files found in: " + javaSourcePaths.stream().collect(joining(", ")));
 
         // Prepare classpath
         List<Path> classpath = emptyList();
         if (classpathElements != null && !classpathElements.isEmpty()) {
-            info("Using provided classpath elements: " + classpathElements.size());
+            logger.info("Using provided classpath elements: " + classpathElements.size());
             classpath = classpathElements.stream()
                     .map(Paths::get)
                     .toList();
         } else {
-            info("No explicit classpath provided. Type resolution for Java recipes might be limited.");
+            logger.info("No explicit classpath provided. Type resolution for Java recipes might be limited.");
             // Consider adding a warning or a way to auto-detect later if needed
         }
 
@@ -454,21 +454,21 @@ class Rewrite implements Callable<Integer> {
                         .classpath(classpath)
                         .logCompilationWarningsAndErrors(true).build().parse(javaSources, baseDir(), ctx)
                         .toList());
-        info(sourceFiles.size() + " java files parsed.");
+        logger.info(sourceFiles.size() + " java files parsed.");
 
         Set<Path> resources = new HashSet<>();
         if (discoverResources) {
-            info("Discovering resource files (yml, yaml, properties, xml, toml) in: "
+            logger.info("Discovering resource files (yml, yaml, properties, xml, toml) in: "
                     + javaSourcePaths.stream().collect(joining(", ")));
             resources = listResourceFiles(javaSourcePaths);
-            info("Found " + resources.size() + " resource files.");
+            logger.info("Found " + resources.size() + " resource files.");
         } else {
-            info("Skipping resource file discovery (--discover-resources=false).");
+            logger.info("Skipping resource file discovery (--discover-resources=false).");
         }
 
         // Always attempt to parse supported types if resources were found/discovered
         if (!resources.isEmpty()) {
-            info("Parsing YAML files...");
+            logger.info("Parsing YAML files...");
             List<Path> yamlPaths = resources.stream()
                     .filter(it -> it.getFileName().toString().endsWith(".yml")
                             || it.getFileName().toString().endsWith(".yaml"))
@@ -478,12 +478,12 @@ class Rewrite implements Callable<Integer> {
                 sourceFiles.addAll(
                         new YamlParser().parse(yamlPaths, baseDir(), ctx)
                                 .toList());
-                info("Parsed " + yamlPaths.size() + " YAML files.");
+                logger.info("Parsed " + yamlPaths.size() + " YAML files.");
             } else {
-                info("No YAML files found to parse.");
+                logger.info("No YAML files found to parse.");
             }
 
-            info("Parsing properties files...");
+            logger.info("Parsing properties files...");
             List<Path> propertiesPaths = resources.stream()
                     .filter(it -> it.getFileName().toString().endsWith(".properties")).toList();
             if (!propertiesPaths.isEmpty()) {
@@ -491,12 +491,12 @@ class Rewrite implements Callable<Integer> {
                 sourceFiles.addAll(
                         new PropertiesParser().parse(propertiesPaths, baseDir(), ctx)
                                 .toList());
-                info("Parsed " + propertiesPaths.size() + " properties files.");
+                logger.info("Parsed " + propertiesPaths.size() + " properties files.");
             } else {
-                info("No properties files found to parse.");
+                logger.info("No properties files found to parse.");
             }
 
-            info("Parsing XML files...");
+            logger.info("Parsing XML files...");
             List<Path> xmlPaths = resources.stream().filter(it -> it.getFileName().toString().endsWith(".xml"))
                     .toList();
             if (!xmlPaths.isEmpty()) {
@@ -504,12 +504,12 @@ class Rewrite implements Callable<Integer> {
                 sourceFiles.addAll(
                         new XmlParser().parse(xmlPaths, baseDir(), ctx)
                                 .toList());
-                info("Parsed " + xmlPaths.size() + " XML files.");
+                logger.info("Parsed " + xmlPaths.size() + " XML files.");
             } else {
-                info("No XML files found to parse.");
+                logger.info("No XML files found to parse.");
             }
 
-            info("Parsing TOML files...");
+            logger.info("Parsing TOML files...");
             List<Path> tomlPaths = resources.stream().filter(it -> it.getFileName().toString().endsWith(".toml"))
                     .toList();
             if (!tomlPaths.isEmpty()) {
@@ -517,31 +517,31 @@ class Rewrite implements Callable<Integer> {
                 sourceFiles.addAll(
                         new TomlParser().parse(tomlPaths, baseDir(), ctx)
                                 .toList());
-                info("Parsed " + tomlPaths.size() + " TOML files.");
+                logger.info("Parsed " + tomlPaths.size() + " TOML files.");
             } else {
-                info("No TOML files found to parse.");
+                logger.info("No TOML files found to parse.");
             }
 
         } else {
-            info("Skipping parsing of YAML, Properties, XML, and TOML files as no resources were discovered or discovery was disabled.");
+            logger.info("Skipping parsing of YAML, Properties, XML, and TOML files as no resources were discovered or discovery was disabled.");
         }
 
         // Always attempt to parse Maven POM (typically pom.xml at baseDir)
-        info("Parsing Maven POMs (if found)...");
+        logger.info("Parsing Maven POMs (if found)...");
         try {
             Xml.Document pomAst = parseMaven(ctx); // parseMaven now returns null if POM not found/parsed
             if (pomAst != null) {
                 sourceFiles.add(pomAst);
-                info("Parsed Maven POM: " + pomAst.getSourcePath());
+                logger.info("Parsed Maven POM: " + pomAst.getSourcePath());
             } else {
-                info("No Maven POM found or parsed in " + baseDir()); // Updated log
+                logger.info("No Maven POM found or parsed in " + baseDir()); // Updated log
             }
         } catch (Exception e) {
             // Catch potential exceptions during POM parsing if it fails
-            warn("Failed to parse Maven POM. Skipping. Error: " + e.getMessage(), e); // Log exception details
+            logger.warn("Failed to parse Maven POM. Skipping. Error: " + e.getMessage(), e); // Log exception details
         }
 
-        info("Running recipe(s) on " + sourceFiles.size() + " detected source files...");
+        logger.info("Running recipe(s) on " + sourceFiles.size() + " detected source files...");
         // Use InMemoryLargeSourceSet and RecipeRun based on plugin v5.39.2
         LargeSourceSet largeSourceSet = new InMemoryLargeSourceSet(sourceFiles);
         RecipeRun recipeRun = recipe.run(largeSourceSet, ctx);
@@ -560,24 +560,24 @@ class Rewrite implements Callable<Integer> {
         return new ResultsContainer(baseDir(), filteredResults);
     }
 
-    Rewrite getLog() {
-        return this;
+    Logger getLog() {
+        return logger;
     }
 
     // log method to mimic plugin behavior
     protected void log(LogLevel logLevel, CharSequence content) {
         switch (logLevel) {
             case DEBUG:
-                info(content.toString()); // Map DEBUG to INFO for now
+                logger.info(content.toString()); // Map DEBUG to INFO for now
                 break;
             case INFO:
-                info(content.toString());
+                logger.info(content.toString());
                 break;
             case WARN:
-                warn(content.toString());
+                logger.warn(content.toString());
                 break;
             case ERROR:
-                error(content.toString());
+                logger.error(content.toString());
                 break;
         }
     }
@@ -776,26 +776,6 @@ class Rewrite implements Callable<Integer> {
         return 0;
     }
 
-    void info(String msg) {
-        logger.info(msg);
-    }
-
-    void warn(String msg) {
-        logger.warn(msg);
-    }
-
-    void warn(String msg, Throwable t) {
-        logger.warn(msg, t);
-    }
-
-    void error(String msg) {
-        logger.error(msg);
-    }
-
-    void error(String msg, Throwable t) {
-        logger.error(msg, t);
-    }
-
     public static RecipeDescriptor getRecipeDescriptor(String recipe, Collection<RecipeDescriptor> recipeDescriptors) {
         return recipeDescriptors.stream()
                 .filter(r -> r.getName().equalsIgnoreCase(recipe))
@@ -830,8 +810,9 @@ class Rewrite implements Callable<Integer> {
         @Option(names = "recursion", defaultValue = "0")
         int recursion;
 
-        Rewrite getLog() {
-            return rewrite;
+        // Use logger from parent rewrite instance
+        Logger getLog() {
+            return rewrite.getLog();
         }
 
         @Override
