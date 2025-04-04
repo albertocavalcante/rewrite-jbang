@@ -94,6 +94,11 @@ class Rewrite implements Callable<Integer> {
         return INSTANCE;
     }
 
+    // Private constructor to enforce singleton pattern
+    private Rewrite() {
+        // Private constructor to prevent direct instantiation
+    }
+
     @Option(names = {"--baseDir",
             "--base-dir"}, description = "Base directory for the project. Defaults to current directory.")
     private String baseDirPath = ".";
@@ -583,10 +588,11 @@ class Rewrite implements Callable<Integer> {
     // https://sourcegraph.com/github.com/openrewrite/rewrite-maven-plugin@v5.40.0/-/blob/src/main/java/org/openrewrite/maven/AbstractRewriteBaseRunMojo.java?L461-469
     protected void logRecipesThatMadeChanges(Result result) {
         String indent = "    ";
-        String prefix = "    ";
+        // Use a fixed size for prefix to avoid string concatenation in a loop
+        StringBuilder prefix = new StringBuilder("    ");
         for (RecipeDescriptor recipeDescriptor : result.getRecipeDescriptorsThatMadeChanges()) {
-            logRecipe(recipeDescriptor, prefix);
-            prefix = prefix + indent;
+            logRecipe(recipeDescriptor, prefix.toString());
+            prefix.append(indent);
         }
     }
 
@@ -610,7 +616,10 @@ class Rewrite implements Callable<Integer> {
         log(recipeChangeLogLevel, recipeString.toString());
         if (!rd.getRecipeList().isEmpty()) {
             for (RecipeDescriptor rchild : rd.getRecipeList()) {
-                logRecipe(rchild, prefix + "    ");
+                // Use StringBuilder to avoid string concatenation
+                StringBuilder childPrefix = new StringBuilder(prefix);
+                childPrefix.append("    ");
+                logRecipe(rchild, childPrefix.toString());
             }
         }
     }
@@ -642,8 +651,10 @@ class Rewrite implements Callable<Integer> {
                 logRecipesThatMadeChanges(result);
             }
 
-            // noinspection ResultOfMethodCallIgnored
-            reportOutputDirectory.mkdirs();
+            // Check return value of mkdirs()
+            if (!reportOutputDirectory.mkdirs() && !reportOutputDirectory.exists()) {
+                logger.warn("Failed to create directory: {}", reportOutputDirectory);
+            }
 
             Path patchFile = reportOutputDirectory.toPath().resolve("rewrite.patch");
             try (BufferedWriter writer = Files.newBufferedWriter(patchFile)) {
@@ -735,8 +746,12 @@ class Rewrite implements Callable<Integer> {
                     // non-existent package
                     Path afterLocation = results.getProjectRoot().resolve(result.getAfter().getSourcePath());
                     File parentDir = afterLocation.toFile().getParentFile();
-                    // noinspection ResultOfMethodCallIgnored
-                    parentDir.mkdirs();
+                    
+                    // Check return value of mkdirs()
+                    if (!parentDir.exists() && !parentDir.mkdirs()) {
+                        logger.warn("Failed to create directory: {}", parentDir);
+                    }
+                    
                     try (BufferedWriter sourceFileWriter = Files.newBufferedWriter(afterLocation)) {
                         Charset charset = result.getAfter().getCharset();
                         sourceFileWriter.write(new String(result.getAfter().printAll().getBytes(charset), charset));
