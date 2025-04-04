@@ -5,7 +5,7 @@
 //DEPS org.slf4j:slf4j-nop:2.0.16
 //DEPS org.apache.maven:maven-core:3.9.9
 
-//DEPS org.openrewrite:rewrite-bom:8.43.0@pom
+//DEPS org.openrewrite:rewrite-bom:8.43.1@pom
 //DEPS org.openrewrite:rewrite-core
 //DEPS org.openrewrite:rewrite-java
 //DEPS org.openrewrite:rewrite-java-8
@@ -219,7 +219,7 @@ class rewrite implements Callable<Integer> {
         mavenExecutionContext.setMavenSettings(settings);
 
         if (!settings.getActiveProfiles().getActiveProfiles().isEmpty()) {
-             mavenParserBuilder.activeProfiles(settings.getActiveProfiles().getActiveProfiles().toArray(new String[0])); // Use String[0]
+            mavenParserBuilder.activeProfiles(settings.getActiveProfiles().getActiveProfiles().toArray(new String[0])); // Use String[0]
         }
 
         // Parse the explicitly found pom.xml - Correct variable type
@@ -286,21 +286,21 @@ class rewrite implements Callable<Integer> {
             }
             Path sourceRoot = sourceDirectoryFile.toPath();
             try (Stream<Path> walk = Files.walk(sourceRoot)) {
-                 walk.filter(p -> !Files.isDirectory(p))
-                    .filter(p -> {
-                        String fileName = p.getFileName().toString();
-                        return resourceExtensions.stream().anyMatch(fileName::endsWith);
-                    })
-                    .map(it -> {
-                        try {
-                            return it.toRealPath().normalize();
-                        } catch (IOException e) {
-                            throw new RuntimeException(e);
-                        }
-                    })
-                    .forEach(resourceFiles::add);
+                walk.filter(p -> !Files.isDirectory(p))
+                        .filter(p -> {
+                            String fileName = p.getFileName().toString();
+                            return resourceExtensions.stream().anyMatch(fileName::endsWith);
+                        })
+                        .map(it -> {
+                            try {
+                                return it.toRealPath().normalize();
+                            } catch (IOException e) {
+                                throw new RuntimeException(e);
+                            }
+                        })
+                        .forEach(resourceFiles::add);
             } catch (IOException e) {
-                 System.err.println("[WARN] Could not scan directory for resources: " + sourceRoot + " - " + e.getMessage());
+                System.err.println("[WARN] Could not scan directory for resources: " + sourceRoot + " - " + e.getMessage());
             }
         }
         return resourceFiles;
@@ -354,13 +354,13 @@ class rewrite implements Callable<Integer> {
         if (recipe.getRecipeList().isEmpty() || recipe.getName().equals("org.openrewrite.Recipe$Noop")) {
             // Fallback: try to find matching recipes from the descriptors
             var matchingRecipeDescriptors = env.listRecipeDescriptors()
-                .stream()
-                .filter(rd -> activeRecipes.stream().anyMatch(a -> rd.getName().equalsIgnoreCase(a)))
-                .toList();
+                    .stream()
+                    .filter(rd -> activeRecipes.stream().anyMatch(a -> rd.getName().equalsIgnoreCase(a)))
+                    .toList();
             if (!matchingRecipeDescriptors.isEmpty()) {
                 var names = matchingRecipeDescriptors.stream()
-                    .map(rd -> rd.getName())
-                    .collect(java.util.stream.Collectors.toSet());
+                        .map(rd -> rd.getName())
+                        .collect(java.util.stream.Collectors.toSet());
                 getLog().info("Activating recipes (fallback): " + names);
                 recipe = env.activateRecipes(names);
             } else {
@@ -382,8 +382,8 @@ class rewrite implements Callable<Integer> {
 
         if (!failedValidations.isEmpty()) {
             failedValidations.forEach(failedValidation -> error(
-                "Recipe validation error in " + failedValidation.getProperty() + ": " + failedValidation.getMessage(),
-                failedValidation.getException()));
+                    "Recipe validation error in " + failedValidation.getProperty() + ": " + failedValidation.getMessage(),
+                    failedValidation.getException()));
             if (failOnInvalidActiveRecipes) {
                 throw new IllegalStateException(
                         "Recipe validation errors detected as part of one or more activeRecipe(s). Please check error logs.");
@@ -413,16 +413,16 @@ class rewrite implements Callable<Integer> {
 
         // Parse Java - Collect Stream<SourceFile> to List
         sourceFiles.addAll(
-            JavaParser.fromJavaVersion()
-                .styles(styles)
-                .classpath(classpath)
-                .logCompilationWarningsAndErrors(true).build().parse(javaSources, baseDir, ctx)
-                .toList()
+                JavaParser.fromJavaVersion()
+                        .styles(styles)
+                        .classpath(classpath)
+                        .logCompilationWarningsAndErrors(true).build().parse(javaSources, baseDir, ctx)
+                        .toList()
         );
         info(sourceFiles.size() + " java files parsed.");
 
         Set<Path> resources = new HashSet<>();
-        if(discoverResources) {
+        if (discoverResources) {
             info("Discovering resource files (yml, yaml, properties, xml, toml) in: " + javaSourcePaths.stream().collect(joining(", ")));
             resources = listResourceFiles(javaSourcePaths);
             info("Found " + resources.size() + " resource files.");
@@ -434,34 +434,34 @@ class rewrite implements Callable<Integer> {
         if (!resources.isEmpty()) {
             info("Parsing YAML files...");
             List<Path> yamlPaths = resources.stream()
-                                    .filter(it -> it.getFileName().toString().endsWith(".yml")
-                                            || it.getFileName().toString().endsWith(".yaml"))
-                                    .toList();
+                    .filter(it -> it.getFileName().toString().endsWith(".yml")
+                            || it.getFileName().toString().endsWith(".yaml"))
+                    .toList();
             if (!yamlPaths.isEmpty()) {
-                 // Collect Stream<SourceFile> to List
-                 sourceFiles.addAll(
-                     new YamlParser().parse(yamlPaths, baseDir, ctx)
-                     .toList()
-                 );
-                 info("Parsed " + yamlPaths.size() + " YAML files.");
+                // Collect Stream<SourceFile> to List
+                sourceFiles.addAll(
+                        new YamlParser().parse(yamlPaths, baseDir, ctx)
+                                .toList()
+                );
+                info("Parsed " + yamlPaths.size() + " YAML files.");
             } else {
-                 info("No YAML files found to parse.");
+                info("No YAML files found to parse.");
             }
 
 
             info("Parsing properties files...");
             List<Path> propertiesPaths = resources.stream()
-                            .filter(it -> it.getFileName().toString().endsWith(".properties")).toList();
-             if (!propertiesPaths.isEmpty()) {
+                    .filter(it -> it.getFileName().toString().endsWith(".properties")).toList();
+            if (!propertiesPaths.isEmpty()) {
                 // Collect Stream<SourceFile> to List
                 sourceFiles.addAll(
-                    new PropertiesParser().parse(propertiesPaths, baseDir, ctx)
-                    .toList()
+                        new PropertiesParser().parse(propertiesPaths, baseDir, ctx)
+                                .toList()
                 );
                 info("Parsed " + propertiesPaths.size() + " properties files.");
-             } else {
-                 info("No properties files found to parse.");
-             }
+            } else {
+                info("No properties files found to parse.");
+            }
 
 
             info("Parsing XML files...");
@@ -469,12 +469,12 @@ class rewrite implements Callable<Integer> {
             if (!xmlPaths.isEmpty()) {
                 // Collect Stream<SourceFile> to List
                 sourceFiles.addAll(
-                    new XmlParser().parse(xmlPaths, baseDir, ctx)
-                    .toList()
+                        new XmlParser().parse(xmlPaths, baseDir, ctx)
+                                .toList()
                 );
                 info("Parsed " + xmlPaths.size() + " XML files.");
             } else {
-                 info("No XML files found to parse.");
+                info("No XML files found to parse.");
             }
 
             info("Parsing TOML files...");
@@ -482,16 +482,16 @@ class rewrite implements Callable<Integer> {
             if (!tomlPaths.isEmpty()) {
                 // Collect Stream<SourceFile> to List
                 sourceFiles.addAll(
-                    new TomlParser().parse(tomlPaths, baseDir, ctx)
-                    .toList()
+                        new TomlParser().parse(tomlPaths, baseDir, ctx)
+                                .toList()
                 );
                 info("Parsed " + tomlPaths.size() + " TOML files.");
             } else {
-                 info("No TOML files found to parse.");
+                info("No TOML files found to parse.");
             }
 
         } else {
-             info("Skipping parsing of YAML, Properties, XML, and TOML files as no resources were discovered or discovery was disabled.");
+            info("Skipping parsing of YAML, Properties, XML, and TOML files as no resources were discovered or discovery was disabled.");
         }
 
         // Always attempt to parse Maven POM (typically pom.xml at baseDir)
@@ -568,7 +568,7 @@ class rewrite implements Callable<Integer> {
         if (rd.getOptions() != null && !rd.getOptions().isEmpty()) { // Null check added
             String opts = rd.getOptions().stream().map(option -> {
                         if (option.getValue() != null) {
-                             return option.getName() + "=" + option.getValue();
+                            return option.getName() + "=" + option.getValue();
                         }
                         return null;
                     }
@@ -580,9 +580,9 @@ class rewrite implements Callable<Integer> {
         // Use the new log method with configured level
         log(recipeChangeLogLevel, recipeString.toString());
         if (rd.getRecipeList() != null) { // Null check added
-             for (RecipeDescriptor rchild : rd.getRecipeList()) {
-                 logRecipe(rchild, prefix + "    ");
-             }
+            for (RecipeDescriptor rchild : rd.getRecipeList()) {
+                logRecipe(rchild, prefix + "    ");
+            }
         }
     }
 
