@@ -5,64 +5,130 @@ alwaysApply: true
 ---
 # OpenRewrite JBang Script Upgrade Workflow
 
-This document outlines the incremental process for updating `rewrite-jbang/rewrite.java` to align with `rewrite-maven-plugin` releases, eventually targeting compatibility with OpenRewrite v8 (used in plugin v6+).
+This document outlines the incremental process for updating `rewrite-jbang/rewrite.java` to align with `rewrite-maven-plugin` releases, eventually targeting compatibility with OpenRewrite v8+ versions.
 
 ## Goal
 
-Incrementally update `rewrite-jbang/rewrite.java`, aligning it feature-by-feature and dependency-by-dependency (excluding the v8 BOM update until explicitly authorized) with the evolution of the `rewrite-maven-plugin`.
+Incrementally update `rewrite-jbang/rewrite.java`, aligning it feature-by-feature and dependency-by-dependency with the evolution of the `rewrite-maven-plugin`.
 
 ## Repositories
 
-*   **Working Repo:** `rewrite-jbang` (branch: `upgrade-deps`)
-*   **Reference Repo:** Local clone of `openrewrite/rewrite-maven-plugin` at `$HOME/dev/workspace/rewrite-maven-plugin`.
+* **Working Repo:** `rewrite-jbang` (branch: `upgrade-deps`)
+* **Reference Repo:** Local clone of `openrewrite/rewrite-maven-plugin`
+* **Test Repo:** Any Java project that can be used to validate changes (e.g., `rules_antlr`)
 
 ## Process per Plugin Tag Increment
 
 Let `P` be the previously processed plugin tag and `C` be the current tag being processed.
 
-1.  **Checkout Plugin Tag:**
-    *   Command: `cd $HOME/dev/workspace/rewrite-maven-plugin && git checkout C`
-    *   AI can proceed automatically.
-2.  **Check Plugin BOM Version:**
-    *   Command: `cd /Users/albertocavalcante/dev/workspace/rewrite-maven-plugin && read pom.xml` (look for `<rewrite.version>` property).
-    *   Note the BOM version `BOM_C` used in tag `C`.
-    *   AI can proceed automatically.
-3.  **Analyze Code Diff:**
-    *   Command: `cd $HOME/dev/workspace/rewrite-maven-plugin && git diff P..C -- src/main/java/ | cat`
-    *   Identify API changes or refactorings relevant to the patterns/classes used in `rewrite-jbang/rewrite.java`.
-    *   AI can proceed automatically.
-4.  **Analyze POM Diff:**
-    *   Command: `cd /Users/albertocavalcante/dev/workspace/rewrite-maven-plugin && git diff P..C -- pom.xml | cat`
-    *   Confirm if the `<rewrite.version>` property changed between `P` and `C`.
-    *   AI can proceed automatically.
-5.  **Apply Code Changes (Requires Authorization):**
-    *   If step 3 identified relevant code changes:
-        *   Propose the specific `edit_file` commands for `rewrite-jbang/rewrite.java`.
-        *   **Wait for user authorization before executing edits.**
-6.  **Apply BOM Change (Conditional, Requires Authorization):**
-    *   If step 4 confirmed `<rewrite.version>` changed to `BOM_C`, **AND** `BOM_C` is **NOT** a v8.x version (does not start with `8.`):
-        *   Propose the `edit_file` command to update `//DEPS org.openrewrite:rewrite-bom:...` in `rewrite-jbang/rewrite.java` to `BOM_C`.
-        *   **Wait for user authorization before executing the edit.**
-    *   **CRITICAL:** Do **NOT** propose or apply any BOM update if `BOM_C` is v8.x until explicitly instructed later in the process.
-7.  **Test Changes:**
-    *   Command: `cd /Users/albertocavalcante/dev/workspace/rules_antlr && jbang ../rewrite-jbang/rewrite.java --recipes org.openrewrite.java.format.AutoFormat`
-    *   Check for exit code 0 and absence of new compilation or runtime errors in the log output.
-    *   AI can proceed automatically *after* any authorized changes have been applied.
-8.  **Commit Changes (Requires Authorization):**
-    *   If steps 5 or 6 resulted in authorized and applied changes, and step 7 passed:
-        *   Report success.
-        *   Propose `git add rewrite.java && git commit ...` with a descriptive message (e.g., `feat/refactor/fix: Align with plugin C (BOM BOM_C if updated)`).
-        *   **Wait for user authorization before executing the commit.**
-9.  **Proceed to Next Tag (Requires Authorization):**
-    *   Report completion for tag `C`.
-    *   Identify the next tag `N` from the tag list.
-    *   **Wait for user authorization before starting analysis for tag `N`.** (Exception: User may pre-authorize checkout only).
+1. **Checkout Plugin Tag:**
+   * Command: `cd /path/to/rewrite-maven-plugin && git checkout C`
+   * AI can proceed automatically.
 
-## V8 Transition
+2. **Check Plugin BOM Version:**
+   * Command: `cd /path/to/rewrite-maven-plugin && git show C:pom.xml | grep '<rewrite.version>'`
+   * Note the BOM version `BOM_C` used in tag `C`.
+   * AI can proceed automatically.
 
-*   Continue the incremental process through all `v5.x` tags.
-*   When the next tag is `v6.0.0` (or whichever first uses OpenRewrite v8), perform steps 1-4 (Checkout, Check BOM, Analyze Diffs).
-*   At this point, the diff analysis should reveal the code changes needed for v8 compatibility.
-*   Apply these code changes first (step 5, requires authorization).
-*   **Explicitly discuss** with the user the plan to update the BOM to v8.x **and get authorization** before proceeding with the BOM update (step 6).
-*   Handle expected compilation errors after the v8 BOM update by applying the fixes identified from the plugin diffs. 
+3. **Analyze Code Diff:**
+   * Command: `cd /path/to/rewrite-maven-plugin && git diff P..C -- src/main/java/ | cat`
+   * Identify API changes or refactorings relevant to the patterns/classes used in `rewrite-jbang/rewrite.java`.
+   * AI can proceed automatically.
+
+4. **Analyze POM Diff:**
+   * Command: `cd /path/to/rewrite-maven-plugin && git diff P..C -- pom.xml | cat`
+   * Confirm if the `<rewrite.version>` property changed between `P` and `C`.
+   * AI can proceed automatically.
+
+5. **Apply Code Changes (Requires Authorization):**
+   * If step 3 identified relevant code changes:
+     * Propose the specific `edit_file` commands for `rewrite-jbang/rewrite.java`.
+     * **Wait for user authorization before executing edits.**
+
+6. **Apply BOM Change (Requires Authorization):**
+   * If step 4 confirmed `<rewrite.version>` changed to `BOM_C`:
+     * Propose the `edit_file` command to update `//DEPS org.openrewrite:rewrite-bom:...` in `rewrite-jbang/rewrite.java` to `BOM_C`.
+     * **Wait for user authorization before executing the edit.**
+
+7. **Test Changes:**
+   * Command: `cd /path/to/test/repo && jbang ../rewrite-jbang/rewrite.java --recipes org.openrewrite.java.format.AutoFormat | cat`
+   * Check for exit code 0 and absence of new compilation or runtime errors in the log output.
+   * If the recipe makes changes to any files, restore them with `git checkout HEAD -- file/path`.
+   * AI can proceed automatically *after* any authorized changes have been applied.
+
+8. **Commit Changes (Requires Authorization):**
+   * If steps 5 or 6 resulted in authorized and applied changes, and step 7 passed:
+     * Report success.
+     * Propose `git add rewrite.java && git commit ...` with a descriptive message (e.g., `feat: Update OpenRewrite BOM to [version] (aligns with plugin [tag])`).
+     * **Wait for user authorization before executing the commit.**
+
+9. **Proceed to Next Tag (Requires Authorization):**
+   * Report completion for tag `C`.
+   * Identify the next tag `N`.
+   * **Wait for user authorization before starting analysis for tag `N`.**
+
+## Learnings from v8.x Upgrade
+
+Based on our experience upgrading to OpenRewrite v8.49.0, here are key insights for future upgrades:
+
+### Common API Changes to Watch For
+
+1. **Method Signature Changes:**
+   * Pay close attention to renamed or removed methods, especially in builder classes like `MavenParser.Builder`.
+   * Example: In v8.48.0, the `.mavenConfig()` method was removed from `MavenParser.Builder`.
+
+2. **Parameter Type Changes:**
+   * Watch for changes in parameter types or return types that might cause compilation errors.
+   * Many methods now return `List<>` with more specific generic types.
+
+3. **New Required Parameters:**
+   * Some methods may require additional parameters or have different parameter ordering.
+
+4. **Dependency Management Changes:**
+   * The OpenRewrite v8.x series integrates more modules into the BOM.
+   * In v6.3.0, the `rewrite.kotlin.version` property was aligned with the main `rewrite.version`.
+
+### Testing Strategies
+
+1. **Compilation Testing:**
+   * Always test compilation after API changes, even for simple BOM version updates.
+   * Use `jbang rewrite.java --recipes org.openrewrite.java.format.AutoFormat | cat` to verify compilation and basic functionality.
+
+2. **Handle Test Side Effects:**
+   * The test recipe may modify files in your test repository.
+   * Always restore modified files with `git checkout HEAD -- file/path` to keep the test repository clean.
+
+3. **Incremental Testing:**
+   * Test after each individual change, not just after completing all changes.
+   * If a test fails, roll back one change at a time to identify the problematic modification.
+
+### Commit Message Conventions
+
+1. **BOM Updates Only:**
+   * `feat: Update OpenRewrite BOM to [version] (aligns with plugin [tag])`
+
+2. **API Changes:**
+   * `feat: Update OpenRewrite BOM to [version] and adapt to API changes (aligns with plugin [tag])`
+   * Include details about significant API changes in the commit message body if needed.
+
+## Specific v8.x API Changes to Know
+
+1. **MavenParser Builder Changes:**
+   * v8.48.0: Removed `.mavenConfig()` method
+   * Usage pattern changed to more direct property configuration
+
+2. **Metrics and Monitoring:**
+   * v8.48.0: Simplified metrics handling, removed many RSocket-related classes and configuration
+
+3. **Maven Scope Support:**
+   * v8.49.0: Added Maven scope support to better control which sources are processed
+
+## Future Upgrade Considerations
+
+When upgrading beyond v8.49.0, follow these additional guidelines:
+
+1. Check for deprecation warnings in the current version before upgrading
+2. Review OpenRewrite release notes for major changes
+3. Pay special attention to builder patterns as they frequently change
+4. Monitor dependency changes closely, especially version alignment between components
+5. Be prepared to update error handling as exception hierarchies may change 
