@@ -81,6 +81,13 @@ import picocli.CommandLine.Option;
 class Rewrite implements Callable<Integer> {
 
     private static final String RECIPE_NOT_FOUND_EXCEPTION_MSG = "Could not find recipe '%s' among available recipes";
+    
+    // Singleton instance for static method access
+    private static final Rewrite INSTANCE = new Rewrite();
+    
+    public static Rewrite getInstance() {
+        return INSTANCE;
+    }
 
     @Option(names = {"--baseDir", "--base-dir"}, description = "Base directory for the project. Defaults to current directory.")
     private String baseDirPath = ".";
@@ -259,7 +266,7 @@ class Rewrite implements Callable<Integer> {
                             result.add(file.toRealPath().normalize());
                         } catch (IOException e) {
                             // Handle exception during path normalization
-                            System.err.println("[WARN] Could not normalize path: " + file + " - " + e.getMessage());
+                            Rewrite.getInstance().warn("Could not normalize path: " + file + " - " + e.getMessage());
                         }
                     }
                     return FileVisitResult.CONTINUE;
@@ -268,7 +275,7 @@ class Rewrite implements Callable<Integer> {
                 @Override
                 public FileVisitResult visitFileFailed(Path file, IOException exc) throws IOException {
                     // Handle errors visiting files (e.g. permission issues)
-                    System.err.println("[WARN] Failed to visit file: " + file + " - " + exc.getMessage());
+                    Rewrite.getInstance().warn("Failed to visit file: " + file + " - " + exc.getMessage());
                     return FileVisitResult.CONTINUE;
                 }
             });
@@ -304,7 +311,7 @@ class Rewrite implements Callable<Integer> {
                         })
                         .forEach(resourceFiles::add);
             } catch (IOException e) {
-                System.err.println("[WARN] Could not scan directory for resources: " + sourceRoot + " - " + e.getMessage());
+                Rewrite.getInstance().warn("Could not scan directory for resources: " + sourceRoot + " - " + e.getMessage());
             }
         }
         return resourceFiles;
