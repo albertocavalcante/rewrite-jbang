@@ -217,7 +217,8 @@ class Rewrite implements Callable<Integer> {
                 }).toList());
 
         MavenSettings.ActiveProfiles activeProfiles = new MavenSettings.ActiveProfiles();
-        activeProfiles.setActiveProfiles(mer.getActiveProfiles());
+        List<String> merActiveProfiles = mer.getActiveProfiles();
+        activeProfiles.setActiveProfiles(merActiveProfiles != null ? merActiveProfiles : Collections.emptyList());
 
         MavenSettings.Mirrors mirrors = new MavenSettings.Mirrors();
         mirrors.setMirrors(
@@ -250,9 +251,9 @@ class Rewrite implements Callable<Integer> {
         MavenExecutionContextView mavenExecutionContext = MavenExecutionContextView.view(ctx);
         mavenExecutionContext.setMavenSettings(settings);
 
-        if (!settings.getActiveProfiles().getActiveProfiles().isEmpty()) {
-            mavenParserBuilder.activeProfiles(settings.getActiveProfiles().getActiveProfiles().toArray(new String[0])); // Use
-            // String[0]
+        if (settings.getActiveProfiles() != null && 
+            !settings.getActiveProfiles().getActiveProfiles().isEmpty()) {
+            mavenParserBuilder.activeProfiles(settings.getActiveProfiles().getActiveProfiles().toArray(new String[0]));
         }
 
         // Parse the explicitly found pom.xml - Correct variable type
