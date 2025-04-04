@@ -130,10 +130,10 @@ class rewrite implements Callable<Integer> {
         return env.build();
     }
 
-    protected ExecutionContext executionContext() {
-        // Log full stack trace on execution errors
+    protected ExecutionContext executionContext(List<Throwable> throwables) {
         return new InMemoryExecutionContext(t -> {
-            getLog().warn("Error during recipe execution: " + t.getMessage(), t); // Pass the throwable 't' as the second argument
+            getLog().warn("Error during recipe execution: " + t.getMessage(), t);
+            throwables.add(t); // Collect throwables
         });
     }
 
@@ -353,7 +353,11 @@ class rewrite implements Callable<Integer> {
         List<NamedStyles> styles;
         styles = env.activateStyles(activeStyles);
 
-        info(""); // because stupid antlr warning dumps without println
+        info("");
+
+        // Create context once, passing a list for throwables
+        List<Throwable> throwables = new ArrayList<>();
+        ExecutionContext ctx = executionContext(throwables);
 
         info("Validating active recipes...");
         Collection<Validated> validated = recipe.validateAll();
@@ -371,10 +375,16 @@ class rewrite implements Callable<Integer> {
             }
         }
 
+        // Check for execution context errors after validation and parsing
+        if (!throwables.isEmpty()) {
+            getLog().warn("Recipe validation or parsing produced " + throwables.size() + " warning(s). Please report this to the recipe author(s).");
+            // Optionally log details if needed, e.g., if debug enabled
+            // if(getLog().isDebugEnabled()) { throwables.forEach(t -> getLog().debug(t.getMessage(), t)); }
+        }
+
         List<Path> javaSources = new ArrayList<>();
         javaSourcePaths.forEach(path -> javaSources.addAll(listJavaSources(path)));
 
-        ExecutionContext ctx = executionContext();
         info("Parsing Java files found in: " + javaSourcePaths.stream().collect(joining(", ")));
 
         // Prepare classpath
