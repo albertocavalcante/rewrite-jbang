@@ -5,7 +5,7 @@
 //DEPS org.slf4j:slf4j-nop:2.0.16
 //DEPS org.apache.maven:maven-core:3.9.9
 
-//DEPS org.openrewrite:rewrite-bom:8.0.0@pom
+//DEPS org.openrewrite:rewrite-bom:8.1.0@pom
 //DEPS org.openrewrite:rewrite-core
 //DEPS org.openrewrite:rewrite-java
 //DEPS org.openrewrite:rewrite-java-8
@@ -222,14 +222,16 @@ class rewrite implements Callable<Integer> {
              mavenParserBuilder.activeProfiles(settings.getActiveProfiles().getActiveProfiles().toArray(new String[0])); // Use String[0]
         }
 
-        // Parse the explicitly found pom.xml
-        List<Xml.Document> parsedPoms = mavenParserBuilder
+        // Parse the explicitly found pom.xml - Correct variable type
+        List<SourceFile> parsedPoms = mavenParserBuilder
                 .build()
                 .parse(pomToParse, baseDir, ctx)
                 .toList();
 
         // Find the Xml.Document within the SourceFile stream/list
         return parsedPoms.stream()
+                .filter(Xml.Document.class::isInstance)
+                .map(Xml.Document.class::cast)
                 .findFirst()
                 .orElse(null);
     }
