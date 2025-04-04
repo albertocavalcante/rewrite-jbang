@@ -75,7 +75,7 @@ import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
-@Command(name = "rewrite", mixinStandardHelpOptions = true, version = "rewrite 0.1", description = "rewrite made with jbang", subcommands = rewrite.rewriteDiscover.class)
+@Command(name = "rewrite", mixinStandardHelpOptions = true, version = "rewrite 0.2", description = "rewrite made with jbang", subcommands = rewrite.rewriteDiscover.class)
 class rewrite implements Callable<Integer> {
 
     private static final String RECIPE_NOT_FOUND_EXCEPTION_MSG = "Could not find recipe '%s' among available recipes";
