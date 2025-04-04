@@ -79,6 +79,8 @@ import picocli.CommandLine.Option;
 class Rewrite implements Callable<Integer> {
 
     private static final String RECIPE_NOT_FOUND_EXCEPTION_MSG = "Could not find recipe '%s' among available recipes";
+    private static final String INDENT_SPACES = "    ";
+    private static final String FALSE_VALUE = "false";
 
     // Singleton instance for static method access
     private static final Rewrite INSTANCE = new Rewrite();
@@ -163,9 +165,9 @@ class Rewrite implements Callable<Integer> {
     }
 
     protected ExecutionContext executionContext() {
-        return new InMemoryExecutionContext(t -> {
-            logger.warn("Error during recipe execution: {}", t.getMessage(), t);
-        });
+        return new InMemoryExecutionContext(t -> 
+            logger.warn("Error during recipe execution: {}", t.getMessage(), t)
+        );
     }
 
     private static RawRepositories buildRawRepositories(List<Repository> repositoriesToMap) {
@@ -252,10 +254,12 @@ class Rewrite implements Callable<Integer> {
         MavenExecutionContextView mavenExecutionContext = MavenExecutionContextView.view(ctx);
         mavenExecutionContext.setMavenSettings(settings);
 
-        if (settings.getActiveProfiles() != null &&
-                settings.getActiveProfiles().getActiveProfiles() != null &&
-                !settings.getActiveProfiles().getActiveProfiles().isEmpty()) {
-            mavenParserBuilder.activeProfiles(settings.getActiveProfiles().getActiveProfiles().toArray(new String[0]));
+        // Check for active profiles and add them to the parser if available
+        if (settings.getActiveProfiles() != null) {
+            List<String> activeProfiles = settings.getActiveProfiles().getActiveProfiles();
+            if (activeProfiles != null && !activeProfiles.isEmpty()) {
+                mavenParserBuilder.activeProfiles(activeProfiles.toArray(new String[0]));
+            }
         }
 
         // Parse the explicitly found pom.xml - Correct variable type
@@ -415,6 +419,7 @@ class Rewrite implements Callable<Integer> {
 
         logger.info("Validating active recipes...");
         Validated validated = recipe.validate(ctx);
+        @SuppressWarnings("unchecked")
         List<Validated.Invalid> failedValidations = validated.failures();
 
         if (!failedValidations.isEmpty()) {
@@ -434,7 +439,9 @@ class Rewrite implements Callable<Integer> {
         List<Path> javaSources = new ArrayList<>();
         javaSourcePaths.forEach(path -> javaSources.addAll(listJavaSources(path)));
 
-        logger.info("Parsing Java files found in: {}", javaSourcePaths.stream().collect(joining(", ")));
+        if (logger.isInfoEnabled()) {
+            logger.info("Parsing Java files found in: {}", javaSourcePaths.stream().collect(joining(", ")));
+        }
 
         // Prepare classpath
         List<Path> classpath = emptyList();
@@ -461,8 +468,10 @@ class Rewrite implements Callable<Integer> {
 
         Set<Path> resources = new HashSet<>();
         if (discoverResources) {
-            logger.info("Discovering resource files (yml, yaml, properties, xml, toml) in: {}",
-                    javaSourcePaths.stream().collect(joining(", ")));
+            if (logger.isInfoEnabled()) {
+                logger.info("Discovering resource files (yml, yaml, properties, xml, toml) in: {}",
+                        javaSourcePaths.stream().collect(joining(", ")));
+            }
             resources = listResourceFiles(javaSourcePaths);
             logger.info("Found {} resource files.", resources.size());
         } else {
@@ -568,16 +577,25 @@ class Rewrite implements Callable<Integer> {
     protected void log(LogLevel logLevel, CharSequence content) {
         switch (logLevel) {
             case DEBUG:
-                logger.info(content.toString()); // Map DEBUG to INFO for now
+                // Map DEBUG to INFO for now
+                if (logger.isInfoEnabled()) {
+                    logger.info(content.toString());
+                }
                 break;
             case INFO:
-                logger.info(content.toString());
+                if (logger.isInfoEnabled()) {
+                    logger.info(content.toString());
+                }
                 break;
             case WARN:
-                logger.warn(content.toString());
+                if (logger.isWarnEnabled()) {
+                    logger.warn(content.toString());
+                }
                 break;
             case ERROR:
-                logger.error(content.toString());
+                if (logger.isErrorEnabled()) {
+                    logger.error(content.toString());
+                }
                 break;
         }
     }
@@ -586,9 +604,9 @@ class Rewrite implements Callable<Integer> {
     // Source:
     // https://sourcegraph.com/github.com/openrewrite/rewrite-maven-plugin@v5.40.0/-/blob/src/main/java/org/openrewrite/maven/AbstractRewriteBaseRunMojo.java?L461-469
     protected void logRecipesThatMadeChanges(Result result) {
-        String indent = "    ";
+        String indent = INDENT_SPACES;
         // Use a fixed size for prefix to avoid string concatenation in a loop
-        StringBuilder prefix = new StringBuilder("    ");
+        StringBuilder prefix = new StringBuilder(INDENT_SPACES);
         for (RecipeDescriptor recipeDescriptor : result.getRecipeDescriptorsThatMadeChanges()) {
             logRecipe(recipeDescriptor, prefix.toString());
             prefix.append(indent);
@@ -617,13 +635,13 @@ class Rewrite implements Callable<Integer> {
             for (RecipeDescriptor rchild : rd.getRecipeList()) {
                 // Use StringBuilder to avoid string concatenation
                 StringBuilder childPrefix = new StringBuilder(prefix);
-                childPrefix.append("    ");
+                childPrefix.append(INDENT_SPACES);
                 logRecipe(rchild, childPrefix.toString());
             }
         }
     }
 
-    void dryRun() {
+    void performDryRun() {
         ResultsContainer results = listResults();
 
         if (results.isNotEmpty()) {
@@ -733,10 +751,11 @@ class Rewrite implements Callable<Integer> {
                     if (result.getBefore() != null) {
                         Path originalLocation = results.getProjectRoot().resolve(result.getBefore().getSourcePath())
                                 .normalize();
-                        boolean deleteSucceeded = originalLocation.toFile().delete();
-                        if (!deleteSucceeded) {
+                        try {
+                            Files.delete(originalLocation);
+                        } catch (IOException e) {
                             throw new IOException(
-                                    String.format("Unable to delete file %s", originalLocation.toAbsolutePath()));
+                                    String.format("Unable to delete file %s: %s", originalLocation.toAbsolutePath(), e.getMessage()), e);
                         }
                     }
                 }
@@ -745,10 +764,11 @@ class Rewrite implements Callable<Integer> {
                     // back to this?
                     if (result.getBefore() != null) {
                         Path originalLocation = results.getProjectRoot().resolve(result.getBefore().getSourcePath());
-                        boolean deleteSucceeded = originalLocation.toFile().delete();
-                        if (!deleteSucceeded) {
+                        try {
+                            Files.delete(originalLocation);
+                        } catch (IOException e) {
                             throw new IOException(
-                                    String.format("Unable to delete file %s", originalLocation.toAbsolutePath()));
+                                    String.format("Unable to delete file %s: %s", originalLocation.toAbsolutePath(), e.getMessage()), e);
                         }
                     }
                     if (result.getAfter() != null) {
@@ -787,7 +807,7 @@ class Rewrite implements Callable<Integer> {
     public Integer call() { // your business logic goes here...
 
         if (dryRun) {
-            dryRun();
+            performDryRun();
         } else {
             realrun();
         }
