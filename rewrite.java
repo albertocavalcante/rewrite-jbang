@@ -117,8 +117,9 @@ class rewrite implements Callable<Integer> {
     }
 
     protected ExecutionContext executionContext() {
+        // Log full stack trace on execution errors
         return new InMemoryExecutionContext(t -> {
-            getLog().warn(t.getMessage());
+            getLog().warn("Error during recipe execution: " + t.getMessage(), t); // Pass the throwable 't' as the second argument
         });
     }
 
