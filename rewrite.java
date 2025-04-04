@@ -141,6 +141,12 @@ class rewrite implements Callable<Integer> {
     private MavenSettings buildSettings() {
         MavenExecutionRequest mer = new DefaultMavenExecutionRequest();
 
+        // Provide a default local repository path if not set
+        File localRepoPath = mer.getLocalRepositoryPath();
+        String localRepo = (localRepoPath != null)
+                ? localRepoPath.toString()
+                : Paths.get(System.getProperty("user.home"), ".m2", "repository").toString();
+
         MavenSettings.Profiles profiles = new MavenSettings.Profiles();
         profiles.setProfiles(
                 mer.getProfiles().stream().map(p -> new MavenSettings.Profile(
@@ -180,12 +186,18 @@ class rewrite implements Callable<Integer> {
             );
         }).collect(toList()));
 
-        return new MavenSettings(mer.getLocalRepositoryPath().toString(), profiles, activeProfiles, mirrors, servers);
+        return new MavenSettings(localRepo, profiles, activeProfiles, mirrors, servers);
     }
 
     public Xml.Document parseMaven(ExecutionContext ctx) {
-        List<Path> allPoms = new ArrayList<>();
-        allPoms.add(baseDir);
+        // Explicitly look for pom.xml in the base directory
+        Path pomPath = baseDir.resolve("pom.xml");
+        if (!Files.exists(pomPath)) {
+            // Optional: Log if no pom.xml is found at the expected location
+            // getLog().info("No pom.xml found in base directory: " + baseDir);
+            return null; // Return null if pom.xml doesn't exist
+        }
+        List<Path> pomToParse = Collections.singletonList(pomPath);
 
         MavenParser.Builder mavenParserBuilder = MavenParser.builder()
                 .mavenConfig(baseDir.resolve(".mvn/maven.config"));
@@ -194,15 +206,17 @@ class rewrite implements Callable<Integer> {
         MavenExecutionContextView mavenExecutionContext = MavenExecutionContextView.view(ctx);
         mavenExecutionContext.setMavenSettings(settings);
 
-        mavenParserBuilder.activeProfiles(settings.getActiveProfiles().getActiveProfiles().toArray(new String[]{}));
+        if (!settings.getActiveProfiles().getActiveProfiles().isEmpty()) {
+             mavenParserBuilder.activeProfiles(settings.getActiveProfiles().getActiveProfiles().toArray(new String[0])); // Use String[0]
+        }
 
-        Xml.Document maven = mavenParserBuilder
+        // Parse the explicitly found pom.xml
+        List<Xml.Document> poms = mavenParserBuilder
                 .build()
-                .parse(allPoms, baseDir, ctx)
-                .iterator()
-                .next();
+                .parse(pomToParse, baseDir, ctx); // Parse the specific pom list
 
-        return maven;
+        // Return the first parsed POM, or null if parsing failed or list is empty
+        return poms.isEmpty() ? null : poms.get(0);
     }
 
     public static List<Path> listJavaSources(String sourceDirectory) {
@@ -260,31 +274,6 @@ class rewrite implements Callable<Integer> {
         return resourceFiles;
     }
 
-    private void discoverRecipeTypes(Recipe recipe, Set<Class<?>> recipeTypes) {
-        for (Recipe next : recipe.getRecipeList()) {
-            discoverRecipeTypes(next, recipeTypes);
-        }
-
-        try {
-            Method getVisitor = recipe.getClass().getDeclaredMethod("getVisitor");
-            getVisitor.setAccessible(true);
-            Object visitor = getVisitor.invoke(recipe);
-            if (visitor instanceof MavenVisitor) {
-                recipeTypes.add(MavenVisitor.class);
-            } else if (visitor instanceof JavaVisitor) {
-                recipeTypes.add(JavaVisitor.class);
-            } else if (visitor instanceof PropertiesVisitor) {
-                recipeTypes.add(PropertiesVisitor.class);
-            } else if (visitor instanceof XmlVisitor) {
-                recipeTypes.add(XmlVisitor.class);
-            } else if (visitor instanceof YamlVisitor) {
-                recipeTypes.add(YamlVisitor.class);
-            }
-        } catch (NoSuchMethodException | InvocationTargetException | IllegalAccessException ignored) {
-            // not every recipe will implement getVisitor() directly, e.g. CompositeRecipe.
-        }
-    }
-
     public static class ResultsContainer {
         final Path projectRoot;
         final List<Result> generated = new ArrayList<>();
@@ -325,7 +314,7 @@ class rewrite implements Callable<Integer> {
         var env = environment();
 
         var recipe = env.activateRecipes(activeRecipes);
-        if (recipe.getRecipeList().size() == 0) {
+        if (recipe.getRecipeList().isEmpty()) {
             getLog().warn("No recipes were activated. " +
                     "Activate a recipe on the command line with '--recipes com.fully.qualified.RecipeClassName'");
             return new ResultsContainer(baseDir, emptyList());
@@ -389,49 +378,60 @@ class rewrite implements Callable<Integer> {
             info("Skipping resource file discovery (--discover-resources=false).");
         }
 
-        Set<Class<?>> recipeTypes = new HashSet<>();
-        discoverRecipeTypes(recipe, recipeTypes);
-
-        if (recipeTypes.contains(YamlVisitor.class)) {
+        // Always attempt to parse supported types if resources were found/discovered
+        if (!resources.isEmpty()) {
             info("Parsing YAML files...");
-            sourceFiles
-                    .addAll(new YamlParser().parse(
-                            resources.stream()
+            List<Path> yamlPaths = resources.stream()
                                     .filter(it -> it.getFileName().toString().endsWith(".yml")
                                             || it.getFileName().toString().endsWith(".yaml"))
-                                    .collect(toList()),
-                            baseDir, ctx));
-        } else {
-            info("Skipping YAML files because there are no active YAML recipes.");
-        }
+                                    .collect(toList());
+            if (!yamlPaths.isEmpty()) {
+                 sourceFiles.addAll(new YamlParser().parse(yamlPaths, baseDir, ctx));
+                 info("Parsed " + yamlPaths.size() + " YAML files.");
+            } else {
+                 info("No YAML files found to parse.");
+            }
 
-        if (recipeTypes.contains(PropertiesVisitor.class)) {
+
             info("Parsing properties files...");
-            sourceFiles.addAll(new PropertiesParser().parse(resources.stream()
-                            .filter(it -> it.getFileName().toString().endsWith(".properties")).collect(toList()), baseDir,
-                    ctx));
-        } else {
-            info("Skipping properties files because there are no active properties recipes.");
-        }
+            List<Path> propertiesPaths = resources.stream()
+                            .filter(it -> it.getFileName().toString().endsWith(".properties")).collect(toList());
+             if (!propertiesPaths.isEmpty()) {
+                sourceFiles.addAll(new PropertiesParser().parse(propertiesPaths, baseDir, ctx));
+                info("Parsed " + propertiesPaths.size() + " properties files.");
+             } else {
+                 info("No properties files found to parse.");
+             }
 
-        if (recipeTypes.contains(XmlVisitor.class)) {
+
             info("Parsing XML files...");
-            sourceFiles.addAll(new XmlParser().parse(
-                    resources.stream().filter(it -> it.getFileName().toString().endsWith(".xml")).collect(toList()),
-                    baseDir, ctx));
+            List<Path> xmlPaths = resources.stream().filter(it -> it.getFileName().toString().endsWith(".xml")).collect(toList());
+            if (!xmlPaths.isEmpty()) {
+                sourceFiles.addAll(new XmlParser().parse(xmlPaths, baseDir, ctx));
+                info("Parsed " + xmlPaths.size() + " XML files.");
+            } else {
+                 info("No XML files found to parse.");
+            }
         } else {
-            info("Skipping XML files because there are no active XML recipes.");
+             info("Skipping parsing of YAML, Properties, and XML files as no resources were discovered or discovery was disabled.");
         }
 
-        if (recipeTypes.contains(MavenVisitor.class)) {
-            info("Parsing POM...");
-            Xml.Document pomAst = parseMaven(ctx);
-            sourceFiles.add(pomAst);
-        } else {
-            info("Skipping Maven POM files because there are no active Maven recipes.");
+        // Always attempt to parse Maven POM (typically pom.xml at baseDir)
+        info("Parsing Maven POMs (if found)...");
+        try {
+            Xml.Document pomAst = parseMaven(ctx); // parseMaven now returns null if POM not found/parsed
+            if (pomAst != null) {
+                sourceFiles.add(pomAst);
+                info("Parsed Maven POM: " + pomAst.getSourcePath());
+            } else {
+                info("No Maven POM found or parsed in " + baseDir); // Updated log
+            }
+        } catch (Exception e) {
+            // Catch potential exceptions during POM parsing if it fails
+            warn("Failed to parse Maven POM. Skipping. Error: " + e.getMessage(), e); // Log exception details
         }
 
-        info("Running recipe(s)...");
+        info("Running recipe(s) on " + sourceFiles.size() + " detected source files...");
         List<Result> results = recipe.run(sourceFiles, ctx).getResults().stream()
                 .filter(source -> {
                     // Remove ASTs originating from generated files
