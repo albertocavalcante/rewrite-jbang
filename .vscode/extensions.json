@@ -1,5 +1,6 @@
 {
     "recommendations": [
-        "jbangdev.jbang-vscode"
+        "jbangdev.jbang-vscode",
+        "asciidoctor.asciidoctor-vscode"
     ]
 }
