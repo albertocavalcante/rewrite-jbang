@@ -86,6 +86,9 @@ class rewrite implements Callable<Integer> {
     @Option(names = {"--javaSources", "--java-sources"}, defaultValue = ".", split = ",")
     List<String> javaSourcePaths = emptyList();
 
+    @Option(names = "--discover-resources", defaultValue = "true", description = "Attempt to discover resource files (yml, xml, properties) in source directories.")
+    boolean discoverResources;
+
     @Option(names = {"--failOnInvalidActiveRecipes", "--fail-on-invalid-recipes"}, defaultValue = "false")
     boolean failOnInvalidActiveRecipes;
 
@@ -207,17 +210,51 @@ class rewrite implements Callable<Integer> {
 
         Path sourceRoot = sourceDirectoryFile.toPath();
         try {
-            return Files.walk(sourceRoot).filter(f -> !Files.isDirectory(f) && f.toFile().getName().endsWith(".java"))
+            return Files.walk(sourceRoot)
+                    .filter(f -> !Files.isDirectory(f) && f.toFile().getName().endsWith(".java"))
                     .map(it -> {
                         try {
-                            return it.toRealPath();
+                            return it.toRealPath().normalize();
                         } catch (IOException e) {
                             throw new RuntimeException(e);
                         }
-                    }).collect(toList());
+                    })
+                    .distinct()
+                    .collect(toList());
         } catch (IOException e) {
-            throw new IllegalStateException("Unable to list Java source files", e);
+            throw new IllegalStateException("Unable to list Java source files in " + sourceDirectory, e);
         }
+    }
+
+    private static Set<Path> listResourceFiles(List<String> sourceDirectories) {
+        Set<Path> resourceFiles = new HashSet<>();
+        Set<String> resourceExtensions = Set.of(".yml", ".yaml", ".properties", ".xml");
+
+        for (String sourceDir : sourceDirectories) {
+            File sourceDirectoryFile = new File(sourceDir);
+            if (!sourceDirectoryFile.exists() || !sourceDirectoryFile.isDirectory()) {
+                continue;
+            }
+            Path sourceRoot = sourceDirectoryFile.toPath();
+            try (Stream<Path> walk = Files.walk(sourceRoot)) {
+                 walk.filter(p -> !Files.isDirectory(p))
+                    .filter(p -> {
+                        String fileName = p.getFileName().toString();
+                        return resourceExtensions.stream().anyMatch(fileName::endsWith);
+                    })
+                    .map(it -> {
+                        try {
+                            return it.toRealPath().normalize();
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        }
+                    })
+                    .forEach(resourceFiles::add);
+            } catch (IOException e) {
+                 System.err.println("[WARN] Could not scan directory for resources: " + sourceRoot + " - " + e.getMessage());
+            }
+        }
+        return resourceFiles;
     }
 
     private void discoverRecipeTypes(Recipe recipe, Set<Class<?>> recipeTypes) {
@@ -316,7 +353,7 @@ class rewrite implements Callable<Integer> {
         javaSourcePaths.forEach(path -> javaSources.addAll(listJavaSources(path)));
 
         ExecutionContext ctx = executionContext();
-        info("Parsing Java files in " + javaSources);
+        info("Parsing Java files found in: " + javaSourcePaths.stream().collect(joining(", ")));
 
         List<SourceFile> sourceFiles = new ArrayList<>(JavaParser.fromJavaVersion()
                 .styles(styles)
@@ -326,7 +363,13 @@ class rewrite implements Callable<Integer> {
         info(sourceFiles.size() + " java files parsed.");
 
         Set<Path> resources = new HashSet<>();
-        // TODO: add resources
+        if(discoverResources) {
+            info("Discovering resource files (yml, yaml, properties, xml) in: " + javaSourcePaths.stream().collect(joining(", ")));
+            resources = listResourceFiles(javaSourcePaths);
+            info("Found " + resources.size() + " resource files.");
+        } else {
+            info("Skipping resource file discovery (--discover-resources=false).");
+        }
 
         Set<Class<?>> recipeTypes = new HashSet<>();
         discoverRecipeTypes(recipe, recipeTypes);
