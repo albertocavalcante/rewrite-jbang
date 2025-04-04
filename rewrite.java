@@ -134,7 +134,7 @@ class rewrite implements Callable<Integer> {
                 r.getUrl(),
                 r.getReleases() == null ? null : new RawRepositories.ArtifactPolicy(Boolean.toString(r.getReleases().isEnabled())),
                 r.getSnapshots() == null ? null : new RawRepositories.ArtifactPolicy(Boolean.toString(r.getSnapshots().isEnabled()))
-        )).collect(toList());
+        )).toList();
         rawRepositories.setRepositories(transformedRepositories);
         return rawRepositories;
     }
@@ -162,7 +162,7 @@ class rewrite implements Callable<Integer> {
                                 ),
                                 buildRawRepositories(p.getRepositories())
                         )
-                ).collect(toList()));
+                ).toList());
 
         MavenSettings.ActiveProfiles activeProfiles = new MavenSettings.ActiveProfiles();
         activeProfiles.setActiveProfiles(mer.getActiveProfiles());
@@ -175,7 +175,7 @@ class rewrite implements Callable<Integer> {
                         m.getMirrorOf(),
                         null,
                         null
-                )).collect(toList())
+                )).toList()
         );
 
         MavenSettings.Servers servers = new MavenSettings.Servers();
@@ -185,7 +185,7 @@ class rewrite implements Callable<Integer> {
                     s.getUsername(),
                     null //TODO: Support SettingsDecrypter to Retrieve Passwords for Private Servers.
             );
-        }).collect(toList()));
+        }).toList());
 
         return new MavenSettings(localRepo, profiles, activeProfiles, mirrors, servers);
     }
@@ -238,7 +238,7 @@ class rewrite implements Callable<Integer> {
                         }
                     })
                     .distinct()
-                    .collect(toList());
+                    .toList();
         } catch (IOException e) {
             throw new IllegalStateException("Unable to list Java source files in " + sourceDirectory, e);
         }
@@ -329,7 +329,7 @@ class rewrite implements Callable<Integer> {
         info("Validating active recipes...");
         Collection<Validated> validated = recipe.validateAll();
         List<Validated.Invalid> failedValidations = validated.stream().map(Validated::failures)
-                .flatMap(Collection::stream).collect(toList());
+                .flatMap(Collection::stream).toList();
         if (!failedValidations.isEmpty()) {
             failedValidations
                     .forEach(failedValidation -> error("Recipe validation error in " + failedValidation.getProperty()
@@ -354,7 +354,7 @@ class rewrite implements Callable<Integer> {
             info("Using provided classpath elements: " + classpathElements.size());
             classpath = classpathElements.stream()
                     .map(Paths::get)
-                    .collect(toList());
+                    .toList();
         } else {
             info("No explicit classpath provided. Type resolution for Java recipes might be limited.");
             // Consider adding a warning or a way to auto-detect later if needed
@@ -385,7 +385,7 @@ class rewrite implements Callable<Integer> {
             List<Path> yamlPaths = resources.stream()
                                     .filter(it -> it.getFileName().toString().endsWith(".yml")
                                             || it.getFileName().toString().endsWith(".yaml"))
-                                    .collect(toList());
+                                    .toList();
             if (!yamlPaths.isEmpty()) {
                  sourceFiles.addAll(new YamlParser().parse(yamlPaths, baseDir, ctx));
                  info("Parsed " + yamlPaths.size() + " YAML files.");
@@ -396,7 +396,7 @@ class rewrite implements Callable<Integer> {
 
             info("Parsing properties files...");
             List<Path> propertiesPaths = resources.stream()
-                            .filter(it -> it.getFileName().toString().endsWith(".properties")).collect(toList());
+                            .filter(it -> it.getFileName().toString().endsWith(".properties")).toList();
              if (!propertiesPaths.isEmpty()) {
                 sourceFiles.addAll(new PropertiesParser().parse(propertiesPaths, baseDir, ctx));
                 info("Parsed " + propertiesPaths.size() + " properties files.");
@@ -406,7 +406,7 @@ class rewrite implements Callable<Integer> {
 
 
             info("Parsing XML files...");
-            List<Path> xmlPaths = resources.stream().filter(it -> it.getFileName().toString().endsWith(".xml")).collect(toList());
+            List<Path> xmlPaths = resources.stream().filter(it -> it.getFileName().toString().endsWith(".xml")).toList();
             if (!xmlPaths.isEmpty()) {
                 sourceFiles.addAll(new XmlParser().parse(xmlPaths, baseDir, ctx));
                 info("Parsed " + xmlPaths.size() + " XML files.");
@@ -441,7 +441,7 @@ class rewrite implements Callable<Integer> {
                     }
                     return true;
                 })
-                .collect(toList());
+                .toList();
 
         return new ResultsContainer(baseDir, results);
 
