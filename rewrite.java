@@ -1,11 +1,11 @@
 ///usr/bin/env jbang "$0" "$@" ; exit $?
-//COMPILE_OPTIONS -Xlint:deprecation
+//COMPILE_OPTIONS -Xlint:deprecation -Xlint:unchecked
 
 //DEPS info.picocli:picocli:4.7.6
 //DEPS org.slf4j:slf4j-nop:2.0.16
 //DEPS org.apache.maven:maven-core:3.9.9
 
-//DEPS org.openrewrite:rewrite-bom:8.28.1@pom
+//DEPS org.openrewrite:rewrite-bom:8.33.0@pom
 //DEPS org.openrewrite:rewrite-core
 //DEPS org.openrewrite:rewrite-java
 //DEPS org.openrewrite:rewrite-java-8
@@ -343,11 +343,28 @@ class rewrite implements Callable<Integer> {
     rewrite.ResultsContainer listResults() {
         var env = environment();
 
-        var recipe = env.activateRecipes(activeRecipes);
-        if (recipe.getRecipeList().isEmpty()) {
-            getLog().warn("No recipes were activated. " +
-                    "Activate a recipe on the command line with '--recipes com.fully.qualified.RecipeClassName'");
+        if (activeRecipes.isEmpty()) {
+            getLog().warn("No recipes specified. Activate a recipe on the command line with '--recipes com.fully.qualified.RecipeClassName'");
             return new ResultsContainer(baseDir, emptyList());
+        }
+
+        var recipe = env.activateRecipes(activeRecipes);
+        if (recipe.getRecipeList().isEmpty() || recipe.getName().equals("org.openrewrite.Recipe$Noop")) {
+            // Fallback: try to find matching recipes from the descriptors
+            var matchingRecipeDescriptors = env.listRecipeDescriptors()
+                .stream()
+                .filter(rd -> activeRecipes.stream().anyMatch(a -> rd.getName().equalsIgnoreCase(a)))
+                .toList();
+            if (!matchingRecipeDescriptors.isEmpty()) {
+                var names = matchingRecipeDescriptors.stream()
+                    .map(rd -> rd.getName())
+                    .collect(java.util.stream.Collectors.toSet());
+                getLog().info("Activating recipes (fallback): " + names);
+                recipe = env.activateRecipes(names);
+            } else {
+                getLog().warn("No matching recipes found for specified active recipes: " + activeRecipes);
+                return new ResultsContainer(baseDir, emptyList());
+            }
         }
 
         List<NamedStyles> styles;
