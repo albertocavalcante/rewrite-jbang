@@ -59,6 +59,9 @@ import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.FileVisitResult;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.stream.Stream;
@@ -239,17 +242,32 @@ class rewrite implements Callable<Integer> {
 
         Path sourceRoot = sourceDirectoryFile.toPath();
         try {
-            return Files.walk(sourceRoot)
-                    .filter(f -> !Files.isDirectory(f) && f.toFile().getName().endsWith(".java"))
-                    .map(it -> {
+            // Use Files.walkFileTree like in plugin v5.43.1
+            List<Path> result = new ArrayList<>();
+            Files.walkFileTree(sourceRoot, new SimpleFileVisitor<Path>() {
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+                    if (!attrs.isDirectory() && file.toString().endsWith(".java")) {
                         try {
-                            return it.toRealPath().normalize();
+                            // Still normalize the path
+                            result.add(file.toRealPath().normalize());
                         } catch (IOException e) {
-                            throw new RuntimeException(e);
+                            // Handle exception during path normalization
+                            System.err.println("[WARN] Could not normalize path: " + file + " - " + e.getMessage());
                         }
-                    })
-                    .distinct()
-                    .toList();
+                    }
+                    return FileVisitResult.CONTINUE;
+                }
+
+                @Override
+                public FileVisitResult visitFileFailed(Path file, IOException exc) throws IOException {
+                    // Handle errors visiting files (e.g. permission issues)
+                    System.err.println("[WARN] Failed to visit file: " + file + " - " + exc.getMessage());
+                    return FileVisitResult.CONTINUE;
+                }
+            });
+            // Return distinct paths
+            return result.stream().distinct().toList();
         } catch (IOException e) {
             throw new IllegalStateException("Unable to list Java source files in " + sourceDirectory, e);
         }
