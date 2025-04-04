@@ -5,7 +5,7 @@
 //DEPS org.slf4j:slf4j-nop:2.0.16
 //DEPS org.apache.maven:maven-core:3.9.9
 
-//DEPS org.openrewrite:rewrite-bom:7.40.8@pom
+//DEPS org.openrewrite:rewrite-bom:8.0.0@pom
 //DEPS org.openrewrite:rewrite-core
 //DEPS org.openrewrite:rewrite-java
 //DEPS org.openrewrite:rewrite-java-8
@@ -49,6 +49,10 @@ import org.openrewrite.yaml.YamlVisitor;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
+import org.openrewrite.RecipeRun;
+import org.openrewrite.Result;
+import org.openrewrite.Validated;
+import org.openrewrite.internal.InMemoryLargeSourceSet;
 
 import java.io.BufferedWriter;
 import java.io.File;
@@ -130,10 +134,9 @@ class rewrite implements Callable<Integer> {
         return env.build();
     }
 
-    protected ExecutionContext executionContext(List<Throwable> throwables) {
+    protected ExecutionContext executionContext() {
         return new InMemoryExecutionContext(t -> {
             getLog().warn("Error during recipe execution: " + t.getMessage(), t);
-            throwables.add(t); // Collect throwables
         });
     }
 
@@ -193,13 +196,7 @@ class rewrite implements Callable<Integer> {
         );
 
         MavenSettings.Servers servers = new MavenSettings.Servers();
-        servers.setServers(mer.getServers().stream().map(s -> {
-            return new MavenSettings.Server(
-                    s.getId(),
-                    s.getUsername(),
-                    null //TODO: Support SettingsDecrypter to Retrieve Passwords for Private Servers.
-            );
-        }).toList());
+        servers.setServers(emptyList());
 
         return new MavenSettings(localRepo, profiles, activeProfiles, mirrors, servers);
     }
@@ -226,12 +223,15 @@ class rewrite implements Callable<Integer> {
         }
 
         // Parse the explicitly found pom.xml
-        List<Xml.Document> poms = mavenParserBuilder
+        List<Xml.Document> parsedPoms = mavenParserBuilder
                 .build()
-                .parse(pomToParse, baseDir, ctx); // Parse the specific pom list
+                .parse(pomToParse, baseDir, ctx)
+                .toList();
 
-        // Return the first parsed POM, or null if parsing failed or list is empty
-        return poms.isEmpty() ? null : poms.get(0);
+        // Find the Xml.Document within the SourceFile stream/list
+        return parsedPoms.stream()
+                .findFirst()
+                .orElse(null);
     }
 
     public static List<Path> listJavaSources(String sourceDirectory) {
@@ -355,31 +355,22 @@ class rewrite implements Callable<Integer> {
 
         info("");
 
-        // Create context once, passing a list for throwables
-        List<Throwable> throwables = new ArrayList<>();
-        ExecutionContext ctx = executionContext(throwables);
+        ExecutionContext ctx = executionContext();
 
         info("Validating active recipes...");
-        Collection<Validated> validated = recipe.validateAll();
-        List<Validated.Invalid> failedValidations = validated.stream().map(Validated::failures)
-                .flatMap(Collection::stream).toList();
+        Validated validated = recipe.validate(ctx);
+        List<Validated.Invalid> failedValidations = validated.failures();
+
         if (!failedValidations.isEmpty()) {
-            failedValidations
-                    .forEach(failedValidation -> error("Recipe validation error in " + failedValidation.getProperty()
-                            + ": " + failedValidation.getMessage(), failedValidation.getException()));
+            failedValidations.forEach(failedValidation -> error(
+                "Recipe validation error in " + failedValidation.getProperty() + ": " + failedValidation.getMessage(),
+                failedValidation.getException()));
             if (failOnInvalidActiveRecipes) {
                 throw new IllegalStateException(
                         "Recipe validation errors detected as part of one or more activeRecipe(s). Please check error logs.");
             } else {
                 error("Recipe validation errors detected as part of one or more activeRecipe(s). Execution will continue regardless.");
             }
-        }
-
-        // Check for execution context errors after validation and parsing
-        if (!throwables.isEmpty()) {
-            getLog().warn("Recipe validation or parsing produced " + throwables.size() + " warning(s). Please report this to the recipe author(s).");
-            // Optionally log details if needed, e.g., if debug enabled
-            // if(getLog().isDebugEnabled()) { throwables.forEach(t -> getLog().debug(t.getMessage(), t)); }
         }
 
         List<Path> javaSources = new ArrayList<>();
@@ -399,14 +390,16 @@ class rewrite implements Callable<Integer> {
             // Consider adding a warning or a way to auto-detect later if needed
         }
 
-        // Initialize sourceFiles list here
         List<SourceFile> sourceFiles = new ArrayList<>();
 
-        // Parse Java
-        sourceFiles.addAll(JavaParser.fromJavaVersion()
+        // Parse Java - Collect Stream<SourceFile> to List
+        sourceFiles.addAll(
+            JavaParser.fromJavaVersion()
                 .styles(styles)
-                .classpath(classpath) // Use the resolved classpath
-                .logCompilationWarningsAndErrors(true).build().parse(javaSources, baseDir, ctx));
+                .classpath(classpath)
+                .logCompilationWarningsAndErrors(true).build().parse(javaSources, baseDir, ctx)
+                .toList()
+        );
         info(sourceFiles.size() + " java files parsed.");
 
         Set<Path> resources = new HashSet<>();
@@ -426,7 +419,11 @@ class rewrite implements Callable<Integer> {
                                             || it.getFileName().toString().endsWith(".yaml"))
                                     .toList();
             if (!yamlPaths.isEmpty()) {
-                 sourceFiles.addAll(new YamlParser().parse(yamlPaths, baseDir, ctx));
+                 // Collect Stream<SourceFile> to List
+                 sourceFiles.addAll(
+                     new YamlParser().parse(yamlPaths, baseDir, ctx)
+                     .toList()
+                 );
                  info("Parsed " + yamlPaths.size() + " YAML files.");
             } else {
                  info("No YAML files found to parse.");
@@ -437,7 +434,11 @@ class rewrite implements Callable<Integer> {
             List<Path> propertiesPaths = resources.stream()
                             .filter(it -> it.getFileName().toString().endsWith(".properties")).toList();
              if (!propertiesPaths.isEmpty()) {
-                sourceFiles.addAll(new PropertiesParser().parse(propertiesPaths, baseDir, ctx));
+                // Collect Stream<SourceFile> to List
+                sourceFiles.addAll(
+                    new PropertiesParser().parse(propertiesPaths, baseDir, ctx)
+                    .toList()
+                );
                 info("Parsed " + propertiesPaths.size() + " properties files.");
              } else {
                  info("No properties files found to parse.");
@@ -447,7 +448,11 @@ class rewrite implements Callable<Integer> {
             info("Parsing XML files...");
             List<Path> xmlPaths = resources.stream().filter(it -> it.getFileName().toString().endsWith(".xml")).toList();
             if (!xmlPaths.isEmpty()) {
-                sourceFiles.addAll(new XmlParser().parse(xmlPaths, baseDir, ctx));
+                // Collect Stream<SourceFile> to List
+                sourceFiles.addAll(
+                    new XmlParser().parse(xmlPaths, baseDir, ctx)
+                    .toList()
+                );
                 info("Parsed " + xmlPaths.size() + " XML files.");
             } else {
                  info("No XML files found to parse.");
@@ -472,9 +477,14 @@ class rewrite implements Callable<Integer> {
         }
 
         info("Running recipe(s) on " + sourceFiles.size() + " detected source files...");
-        List<Result> results = recipe.run(sourceFiles, ctx).getResults().stream()
+        // Use InMemoryLargeSourceSet and RecipeRun based on plugin v5.39.2
+        LargeSourceSet largeSourceSet = new InMemoryLargeSourceSet(sourceFiles);
+        RecipeRun recipeRun = recipe.run(largeSourceSet, ctx);
+        List<Result> results = recipeRun.getChangeset().getAllResults();
+
+        // Filter results after running the recipe
+        List<Result> filteredResults = results.stream()
                 .filter(source -> {
-                    // Remove ASTs originating from generated files
                     if (source.getBefore() != null) {
                         return !source.getBefore().getMarkers().findFirst(Generated.class).isPresent();
                     }
@@ -482,8 +492,7 @@ class rewrite implements Callable<Integer> {
                 })
                 .toList();
 
-        return new ResultsContainer(baseDir, results);
-
+        return new ResultsContainer(baseDir, filteredResults);
     }
 
     rewrite getLog() {
