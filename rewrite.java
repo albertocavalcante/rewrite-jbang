@@ -197,17 +197,24 @@ class Rewrite implements Callable<Integer> {
 
         MavenSettings.Profiles profiles = new MavenSettings.Profiles();
         profiles.setProfiles(
-                mer.getProfiles().stream().map(p -> new MavenSettings.Profile(
-                        p.getId(),
-                        p.getActivation() == null ? null
-                                : new ProfileActivation(
-                                p.getActivation().isActiveByDefault(),
-                                p.getActivation().getJdk(),
-                                p.getActivation().getProperty() == null ? null
-                                        : new ProfileActivation.Property(
-                                        p.getActivation().getProperty().getName(),
-                                        p.getActivation().getProperty().getValue())),
-                        buildRawRepositories(p.getRepositories()))).toList());
+                mer.getProfiles().stream().map(p -> {
+                    // Extract nested ternary operation
+                    ProfileActivation.Property activationProperty = null;
+                    if (p.getActivation() != null && p.getActivation().getProperty() != null) {
+                        activationProperty = new ProfileActivation.Property(
+                                p.getActivation().getProperty().getName(),
+                                p.getActivation().getProperty().getValue());
+                    }
+                    
+                    return new MavenSettings.Profile(
+                            p.getId(),
+                            p.getActivation() == null ? null
+                                    : new ProfileActivation(
+                                    p.getActivation().isActiveByDefault(),
+                                    p.getActivation().getJdk(),
+                                    activationProperty),
+                            buildRawRepositories(p.getRepositories()));
+                }).toList());
 
         MavenSettings.ActiveProfiles activeProfiles = new MavenSettings.ActiveProfiles();
         activeProfiles.setActiveProfiles(mer.getActiveProfiles());
