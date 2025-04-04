@@ -1,7 +1,7 @@
 # OpenRewrite as a jbang script
 
 As an experiment from asking https://github.com/openrewrite/rewrite/discussions/834
-I made this little script which is 97% same as the code found in https://github.com/openrewrite/rewrite-maven-plugin.
+I made this little script which is based on the code found in https://github.com/openrewrite/rewrite-maven-plugin.
 
 It lets you run OpenRewrite on any kind of project. The script is now compatible with OpenRewrite v8.49.0.
 
@@ -12,29 +12,29 @@ How to run:
 
 [source,sh]
 ----
-jbang rewrite@maxandersen/rewrite-jbang discover
+jbang rewrite.java discover
 ----
 
-3. Try run it with a few recipes: 
+3. Try running it with a few recipes: 
 
 [source,sh]
 ----
-jbang rewrite@maxandersen/rewrite-jbang --recipes org.openrewrite.staticanalysis.CodeCleanup,org.openrewrite.java.format.AutoFormat
+jbang rewrite.java --recipes org.openrewrite.java.format.AutoFormat
 ----
 
-You can also install the script using: `jbang app install  https://github.com/maxandersen/rewrite-jbang/blob/master/rewrite.java`
+You can also install the script locally using: `jbang app install rewrite.java`
 and just use `rewrite` directly, i.e.:
 
 [source,sh]
 ----
-rewrite --recipes org.openrewrite.staticanalysis.CodeCleanup,org.openrewrite.java.format.AutoFormat --dry-run
+rewrite --recipes org.openrewrite.java.format.AutoFormat --dry-run
 ----
 
-Limitations: 
+Usage tips: 
 
 * Use `--dry-run` to see proposed changes and generate a patch file (default: `./rewrite/rewrite.patch`).
-* Remove `--dry-run` (or set to `false`) to apply changes directly.
-* When recipe files make changes, verify them before committing.
+* When running without `--dry-run`, changes will be applied directly to your files.
+* Always review changes before committing them to version control.
 
 == Key Options
 
@@ -48,13 +48,13 @@ Comma-separated list of style configuration names to activate.
 Comma-separated list of directories containing Java source files to scan. Defaults to `.`
 
 `--discover-resources <boolean>`::
-Attempt to discover resource files (`.yml`, `.yaml`, `.properties`, `.xml`) within the `--javaSources` directories. Defaults to `true`. Set to `false` to disable scanning for these files.
+Attempt to discover resource files (`.yml`, `.yaml`, `.properties`, `.xml`, `.toml`) within the `--javaSources` directories. Defaults to `true`. Set to `false` to disable scanning for these files.
 
 `--classpath <string>`::
 Specify the classpath needed for type resolution in Java recipes. Use the system's path separator (e.g., `:` for Linux/macOS, `;` for Windows). Example: `--classpath "lib/dep1.jar:target/classes"`. Crucial for recipes that need to understand types from dependencies.
 
 `--dry-run <boolean>`::
-If `true`, lists changes and outputs a patch file instead of modifying files. Defaults to `false`.
+If `true`, lists changes and outputs a patch file instead of modifying files.
 
 `--fail-on-dry-run <boolean>`::
 If `true` and `--dry-run` is active, the script will exit with an error code if any changes are detected. Defaults to `false`.
@@ -64,57 +64,66 @@ Directory where the `rewrite.patch` file is written during a dry run. Defaults t
 
 == Common Recipe Examples
 
-OpenRewrite provides many useful recipes. Here are some popular ones:
+OpenRewrite provides many useful recipes. Here are some examples:
 
 [source,sh]
 ----
 # Format Java code
-rewrite --recipes org.openrewrite.java.format.AutoFormat
+jbang rewrite.java --recipes org.openrewrite.java.format.AutoFormat
 
-# Fix common code issues
-rewrite --recipes org.openrewrite.java.cleanup.CommonStaticAnalysis
+# Remove unused imports
+jbang rewrite.java --recipes org.openrewrite.java.RemoveUnusedImports
 
-# Update dependencies
-rewrite --recipes org.openrewrite.java.dependencies.ChangeDependency \
-  --oldGroupId com.google.guava --oldArtifactId guava --newVersion 31.1-jre
+# Modernize Java
+jbang rewrite.java --recipes org.openrewrite.java.cleanup.Cleanup
 
-# Sort Maven dependencies
-rewrite --recipes org.openrewrite.maven.SortDependencies
+# Maven: Sort dependencies
+jbang rewrite.java --recipes org.openrewrite.maven.SortDependencies
 
-# Migrate JUnit 4 to JUnit 5
-rewrite --recipes org.openrewrite.java.testing.junit5.JUnit4to5Migration
+# Maven: Update a dependency version
+jbang rewrite.java --recipes org.openrewrite.maven.ChangeDependencyVersion \
+  --groupId com.google.guava --artifactId guava --newVersion 31.1-jre
+----
+
+For a complete list of available recipes, run:
+[source,sh]
+----
+jbang rewrite.java discover
 ----
 
 == Limitations
 
-* Does not (yet) offer to automatically resolve dependencies from build files (use `--classpath` for manual provision).
-* Totally just slammed together code a slow sunday morning!
+* Does not automatically resolve dependencies from build files (use `--classpath` for manual provision).
+* Limited type resolution without an explicit classpath.
+* Some recipes may require additional configuration parameters.
 
 == Development Notes
 
 * Uses JBang for execution and dependency management.
 * Dependencies are declared via `//DEPS` comments in `rewrite.java`.
 * Current version is compatible with OpenRewrite v8.49.0.
-* For incremental upgrade information, see the `rules.md` file in this repository.
+* For upgrade workflow details, see `rules.md` in this repository.
 
 == Troubleshooting
 
-=== Recipe Changes But Doesn't Apply
+=== No Changes Applied
 
-If a recipe indicates it will make changes but doesn't apply them, check if:
+If the recipe doesn't apply changes:
 
-* You're using `--dry-run` (default is `false`)
-* You have write permissions to the files
+* Verify you're NOT using `--dry-run` if you want to actually apply changes
+* Check if the recipe produced any errors in the output
+* Ensure the recipe is applicable to your codebase (some recipes are language or framework-specific)
 
 === Classpath Issues
 
-If you encounter type resolution problems:
+For type resolution problems:
 
-* Ensure you're providing the correct `--classpath` with all necessary dependencies
-* For Maven projects, you can generate the classpath with: `mvn dependency:build-classpath -Dmdep.outputFile=cp.txt`
+* Provide the classpath with all necessary dependencies
+* For Maven projects: `mvn dependency:build-classpath -Dmdep.outputFile=cp.txt`
 * For Gradle projects: `gradle -q printClasspath > cp.txt`
+* Then use the generated classpath: `jbang rewrite.java --classpath "$(cat cp.txt)" --recipes ...`
 
-=== Compilation Errors
+=== Java Version Compatibility
 
 * Ensure your JDK version is compatible with the project you're modifying
-* Some recipes require specific Java language features
+* The JBang script is tested with Java 11+
