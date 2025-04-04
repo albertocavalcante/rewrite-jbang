@@ -2,7 +2,7 @@
 //COMPILE_OPTIONS -Xlint:deprecation -Xlint:unchecked
 
 //DEPS info.picocli:picocli:4.7.6
-//DEPS org.slf4j:slf4j-nop:2.0.16
+//DEPS org.slf4j:slf4j-simple:2.0.17
 //DEPS org.apache.maven:maven-core:3.9.9
 
 //DEPS org.openrewrite:rewrite-bom:8.49.0@pom
@@ -18,6 +18,8 @@
 
 
 
+import static java.lang.System.err;
+import static java.lang.System.out;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptySet;
 import static java.util.stream.Collectors.joining;
@@ -70,14 +72,12 @@ import org.openrewrite.toml.TomlParser;
 import org.openrewrite.xml.XmlParser;
 import org.openrewrite.xml.tree.Xml;
 import org.openrewrite.yaml.YamlParser;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
-
-// Additional imports for SLF4J
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 @Command(name = "rewrite", mixinStandardHelpOptions = true, version = "rewrite 0.2", description = "rewrite made with jbang", subcommands = Rewrite.RewriteDiscover.class)
 class Rewrite implements Callable<Integer> {
@@ -86,16 +86,12 @@ class Rewrite implements Callable<Integer> {
 
     // Singleton instance for static method access
     private static final Rewrite INSTANCE = new Rewrite();
-
+    
     // SLF4J Logger
     private static final Logger logger = LoggerFactory.getLogger(Rewrite.class);
 
     public static Rewrite getInstance() {
         return INSTANCE;
-    }
-
-    public static Logger getLogger() {
-        return logger;
     }
 
     @Option(names = {"--baseDir",
@@ -145,6 +141,12 @@ class Rewrite implements Callable<Integer> {
     LogLevel recipeChangeLogLevel = LogLevel.WARN;
 
     public static void main(String... args) {
+        // Configure slf4j-simple to format output similar to previous implementation
+        System.setProperty("org.slf4j.simpleLogger.showThreadName", "false");
+        System.setProperty("org.slf4j.simpleLogger.levelInBrackets", "true");
+        System.setProperty("org.slf4j.simpleLogger.showLogName", "false");
+        System.setProperty("org.slf4j.simpleLogger.showDateTime", "false");
+        
         int exitCode = new CommandLine(new Rewrite()).execute(args);
         System.exit(exitCode);
     }
@@ -276,7 +278,7 @@ class Rewrite implements Callable<Integer> {
                             result.add(file.toRealPath().normalize());
                         } catch (IOException e) {
                             // Handle exception during path normalization
-                            Rewrite.getLogger().warn("Could not normalize path: {} - {}", file, e.getMessage());
+                            logger.warn("Could not normalize path: {} - {}", file, e.getMessage());
                         }
                     }
                     return FileVisitResult.CONTINUE;
@@ -285,7 +287,7 @@ class Rewrite implements Callable<Integer> {
                 @Override
                 public FileVisitResult visitFileFailed(Path file, IOException exc) throws IOException {
                     // Handle errors visiting files (e.g. permission issues)
-                    Rewrite.getLogger().warn("Failed to visit file: {} - {}", file, exc.getMessage());
+                    logger.warn("Failed to visit file: {} - {}", file, exc.getMessage());
                     return FileVisitResult.CONTINUE;
                 }
             });
@@ -321,7 +323,7 @@ class Rewrite implements Callable<Integer> {
                         })
                         .forEach(resourceFiles::add);
             } catch (IOException e) {
-                Rewrite.getLogger().warn("Could not scan directory for resources: {} - {}", sourceRoot, e.getMessage());
+                logger.warn("Could not scan directory for resources: {} - {}", sourceRoot, e.getMessage());
             }
         }
         return resourceFiles;
