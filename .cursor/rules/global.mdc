@@ -17,6 +17,40 @@ Incrementally update `rewrite-jbang/rewrite.java`, aligning it feature-by-featur
 * **Reference Repo:** Local clone of `openrewrite/rewrite-maven-plugin`
 * **Test Repo:** Any Java project that can be used to validate changes (e.g., `rules_antlr`)
 
+## Documentation Maintenance Requirements
+
+Always keep documentation in sync with code changes:
+
+1. **README.adoc Updates:**
+   * Any new features, command-line options, or behavior changes must be reflected in README.adoc
+   * Document new options with clear descriptions of their purpose and default values
+   * Update examples to demonstrate usage of new features
+   * Review troubleshooting sections for relevance when fixing issues
+
+2. **TODO Comments:**
+   * Address TODO comments in the code when implementing related features
+   * When resolving a TODO comment, update both the code and documentation
+
+3. **Commit Documentation Together:**
+   * Always include documentation updates in the same commit as code changes
+   * Use "docs:" prefix for documentation-only changes
+   * For mixed changes, use "feat:" or appropriate prefix and mention docs update in commit message
+
+## Rules Maintenance Guidelines
+
+Changes to these rules require special handling:
+
+1. **Never Auto-Commit Rule Changes:**
+   * Do NOT directly commit changes to `rules.md` or `.cursor/rules/global.mdc`
+   * Instead, write changes to a temporary file (e.g., `temp_rules.md`)
+   * Inform the user to manually copy the contents to `.cursor/rules/global.mdc`
+   * Wait for the user to confirm they've copied the contents before proceeding
+
+2. **Rule Update Process:**
+   * Propose rule updates in a temporary file
+   * Allow the user to review and apply the changes manually
+   * User will commit the changes or instruct you to commit after they've applied them
+
 ## Process per Plugin Tag Increment
 
 Let `P` be the previously processed plugin tag and `C` be the current tag being processed.
@@ -45,27 +79,36 @@ Let `P` be the previously processed plugin tag and `C` be the current tag being 
      * Propose the specific `edit_file` commands for `rewrite-jbang/rewrite.java`.
      * **Wait for user authorization before executing edits.**
 
-6. **Apply BOM Change (Requires Authorization):**
+6. **Update Documentation (Requires Authorization):**
+   * After any code changes from step 5:
+     * Check if new features, options, or behavioral changes were introduced
+     * Propose the specific `edit_file` commands for `README.adoc` to document these changes
+     * Ensure any TODOs that were addressed are documented
+     * **Wait for user authorization before executing edits.**
+
+7. **Apply BOM Change (Requires Authorization):**
    * If step 4 confirmed `<rewrite.version>` changed to `BOM_C`:
      * Propose the `edit_file` command to update `//DEPS org.openrewrite:rewrite-bom:...` in `rewrite-jbang/rewrite.java` to `BOM_C`.
      * **Wait for user authorization before executing the edit.**
 
-7. **Test Changes:**
+8. **Test Changes:**
    * Command: `cd /path/to/test/repo && jbang ../rewrite-jbang/rewrite.java --recipes org.openrewrite.java.format.AutoFormat | cat`
    * Check for exit code 0 and absence of new compilation or runtime errors in the log output.
    * If the recipe makes changes to any files, restore them with `git checkout HEAD -- file/path`.
    * AI can proceed automatically *after* any authorized changes have been applied.
 
-8. **Commit Changes (Requires Authorization):**
-   * If steps 5 or 6 resulted in authorized and applied changes, and step 7 passed:
+9. **Commit Changes (Requires Authorization):**
+   * If steps 5, 6, or 7 resulted in authorized and applied changes, and step 8 passed:
      * Report success.
-     * Propose `git add rewrite.java && git commit ...` with a descriptive message (e.g., `feat: Update OpenRewrite BOM to [version] (aligns with plugin [tag])`).
+     * Propose `git add rewrite.java README.adoc && git commit ...` with a descriptive message.
+     * Include both code and documentation changes in the same commit.
+     * For mixed changes, use appropriate prefix like `feat:` and mention docs updates.
      * **Wait for user authorization before executing the commit.**
 
-9. **Proceed to Next Tag (Requires Authorization):**
-   * Report completion for tag `C`.
-   * Identify the next tag `N`.
-   * **Wait for user authorization before starting analysis for tag `N`.**
+10. **Proceed to Next Tag (Requires Authorization):**
+    * Report completion for tag `C`.
+    * Identify the next tag `N`.
+    * **Wait for user authorization before starting analysis for tag `N`.**
 
 ## Learnings from v8.x Upgrade
 
