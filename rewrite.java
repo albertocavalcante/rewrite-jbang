@@ -17,65 +17,63 @@
 
 
 
-import org.apache.maven.execution.DefaultMavenExecutionRequest;
-import org.apache.maven.execution.MavenExecutionRequest;
-import org.apache.maven.model.Repository;
-import org.apache.maven.settings.crypto.DefaultSettingsDecryptionRequest;
-import org.apache.maven.settings.crypto.SettingsDecryptionRequest;
-import org.apache.maven.settings.crypto.SettingsDecryptionResult;
-import org.openrewrite.*;
-import org.openrewrite.config.Environment;
-import org.openrewrite.config.OptionDescriptor;
-import org.openrewrite.config.RecipeDescriptor;
-import org.openrewrite.internal.StringUtils;
-import org.openrewrite.java.JavaParser;
-import org.openrewrite.java.JavaVisitor;
-import org.openrewrite.marker.Generated;
-import org.openrewrite.maven.MavenExecutionContextView;
-import org.openrewrite.maven.MavenParser;
-import org.openrewrite.maven.MavenSettings;
-import org.openrewrite.maven.MavenVisitor;
-import org.openrewrite.maven.internal.RawRepositories;
-import org.openrewrite.maven.tree.ProfileActivation;
-import org.openrewrite.properties.PropertiesParser;
-import org.openrewrite.properties.PropertiesVisitor;
-import org.openrewrite.shaded.jgit.util.FileUtils;
-import org.openrewrite.style.NamedStyles;
-import org.openrewrite.xml.XmlParser;
-import org.openrewrite.xml.XmlVisitor;
-import org.openrewrite.xml.tree.Xml;
-import org.openrewrite.yaml.YamlParser;
-import org.openrewrite.yaml.YamlVisitor;
-import picocli.CommandLine;
-import picocli.CommandLine.Command;
-import picocli.CommandLine.Option;
-import org.openrewrite.RecipeRun;
-import org.openrewrite.Result;
-import org.openrewrite.Validated;
-import org.openrewrite.internal.InMemoryLargeSourceSet;
-
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.IOException;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.nio.charset.Charset;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.SimpleFileVisitor;
-import java.nio.file.FileVisitResult;
-import java.nio.file.attribute.BasicFileAttributes;
-import java.util.*;
-import java.util.concurrent.Callable;
-import java.util.stream.Stream;
-
 import static java.lang.System.err;
 import static java.lang.System.out;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptySet;
 import static java.util.stream.Collectors.joining;
-import static java.util.stream.Collectors.toList;
+
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.IOException;
+import java.nio.charset.Charset;
+import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.stream.Stream;
+
+import org.apache.maven.execution.DefaultMavenExecutionRequest;
+import org.apache.maven.execution.MavenExecutionRequest;
+import org.apache.maven.model.Repository;
+import org.openrewrite.ExecutionContext;
+import org.openrewrite.InMemoryExecutionContext;
+import org.openrewrite.LargeSourceSet;
+import org.openrewrite.RecipeRun;
+import org.openrewrite.Result;
+import org.openrewrite.SourceFile;
+import org.openrewrite.Validated;
+import org.openrewrite.config.Environment;
+import org.openrewrite.config.OptionDescriptor;
+import org.openrewrite.config.RecipeDescriptor;
+import org.openrewrite.internal.InMemoryLargeSourceSet;
+import org.openrewrite.internal.StringUtils;
+import org.openrewrite.java.JavaParser;
+import org.openrewrite.marker.Generated;
+import org.openrewrite.maven.MavenExecutionContextView;
+import org.openrewrite.maven.MavenParser;
+import org.openrewrite.maven.MavenSettings;
+import org.openrewrite.maven.internal.RawRepositories;
+import org.openrewrite.maven.tree.ProfileActivation;
+import org.openrewrite.properties.PropertiesParser;
+import org.openrewrite.style.NamedStyles;
+import org.openrewrite.xml.XmlParser;
+import org.openrewrite.xml.tree.Xml;
+import org.openrewrite.yaml.YamlParser;
+
+import picocli.CommandLine;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
 
 @Command(name = "rewrite", mixinStandardHelpOptions = true, version = "rewrite 0.1", description = "rewrite made with jbang", subcommands = rewrite.rewriteDiscover.class)
 class rewrite implements Callable<Integer> {
