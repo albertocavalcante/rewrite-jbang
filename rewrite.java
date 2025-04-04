@@ -16,10 +16,6 @@
 //DEPS org.openrewrite:rewrite-toml
 //DEPS org.openrewrite:rewrite-yaml
 
-
-
-import static java.lang.System.err;
-import static java.lang.System.out;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptySet;
 import static java.util.stream.Collectors.joining;
@@ -99,8 +95,8 @@ class Rewrite implements Callable<Integer> {
         // Private constructor to prevent direct instantiation
     }
 
-    @Option(names = {"--baseDir",
-            "--base-dir"}, description = "Base directory for the project. Defaults to current directory.")
+    @Option(names = { "--baseDir",
+            "--base-dir" }, description = "Base directory for the project. Defaults to current directory.")
     private String baseDirPath = ".";
 
     private Path baseDir() {
@@ -113,7 +109,7 @@ class Rewrite implements Callable<Integer> {
     @Option(names = "--styles", split = ",")
     protected Set<String> activeStyles = Collections.emptySet();
 
-    @Option(names = {"--javaSources", "--java-sources"}, defaultValue = ".", split = ",")
+    @Option(names = { "--javaSources", "--java-sources" }, defaultValue = ".", split = ",")
     List<String> javaSourcePaths = emptyList();
 
     @Option(names = "--discover-resources", defaultValue = "true", description = "Attempt to discover resource files (yml, xml, properties) in source directories.")
@@ -122,13 +118,13 @@ class Rewrite implements Callable<Integer> {
     @Option(names = "--classpath", description = "Specify the classpath for type resolution, using the system path separator.", split = "${sys:path.separator}")
     List<String> classpathElements = emptyList();
 
-    @Option(names = {"--failOnInvalidActiveRecipes", "--fail-on-invalid-recipes"}, defaultValue = "false")
+    @Option(names = { "--failOnInvalidActiveRecipes", "--fail-on-invalid-recipes" }, defaultValue = "false")
     boolean failOnInvalidActiveRecipes;
 
-    @Option(names = {"--reportOutputDirectory", "--report"}, defaultValue = "./rewrite")
+    @Option(names = { "--reportOutputDirectory", "--report" }, defaultValue = "./rewrite")
     private File reportOutputDirectory;
 
-    @Option(names = {"--failOnDryRunResults", "--fail-on-dry-run"}, defaultValue = "false")
+    @Option(names = { "--failOnDryRunResults", "--fail-on-dry-run" }, defaultValue = "false")
     boolean failOnDryRunResults;
 
     @Option(names = "--dry-run", defaultValue = "false")
@@ -180,12 +176,12 @@ class Rewrite implements Callable<Integer> {
         RawRepositories rawRepositories = new RawRepositories();
         List<RawRepositories.Repository> transformedRepositories = repositoriesToMap
                 .stream().map(r -> new RawRepositories.Repository(
-                r.getId(),
-                r.getUrl(),
-                r.getReleases() == null ? null
-                        : new RawRepositories.ArtifactPolicy(Boolean.toString(r.getReleases().isEnabled())),
-                r.getSnapshots() == null ? null
-                        : new RawRepositories.ArtifactPolicy(Boolean.toString(r.getSnapshots().isEnabled()))))
+                        r.getId(),
+                        r.getUrl(),
+                        r.getReleases() == null ? null
+                                : new RawRepositories.ArtifactPolicy(Boolean.toString(r.getReleases().isEnabled())),
+                        r.getSnapshots() == null ? null
+                                : new RawRepositories.ArtifactPolicy(Boolean.toString(r.getSnapshots().isEnabled()))))
                 .toList();
         rawRepositories.setRepositories(transformedRepositories);
         return rawRepositories;
@@ -210,14 +206,14 @@ class Rewrite implements Callable<Integer> {
                                 p.getActivation().getProperty().getName(),
                                 p.getActivation().getProperty().getValue());
                     }
-                    
+
                     return new MavenSettings.Profile(
                             p.getId(),
                             p.getActivation() == null ? null
                                     : new ProfileActivation(
-                                    p.getActivation().isActiveByDefault(),
-                                    p.getActivation().getJdk(),
-                                    activationProperty),
+                                            p.getActivation().isActiveByDefault(),
+                                            p.getActivation().getJdk(),
+                                            activationProperty),
                             buildRawRepositories(p.getRepositories()));
                 }).toList());
 
@@ -256,8 +252,9 @@ class Rewrite implements Callable<Integer> {
         MavenExecutionContextView mavenExecutionContext = MavenExecutionContextView.view(ctx);
         mavenExecutionContext.setMavenSettings(settings);
 
-        if (settings.getActiveProfiles() != null && 
-            !settings.getActiveProfiles().getActiveProfiles().isEmpty()) {
+        if (settings.getActiveProfiles() != null &&
+                settings.getActiveProfiles().getActiveProfiles() != null &&
+                !settings.getActiveProfiles().getActiveProfiles().isEmpty()) {
             mavenParserBuilder.activeProfiles(settings.getActiveProfiles().getActiveProfiles().toArray(new String[0]));
         }
 
@@ -363,7 +360,7 @@ class Rewrite implements Callable<Integer> {
                     generated.add(result);
                 } else if (result.getBefore() != null && result.getAfter() == null) {
                     deleted.add(result);
-                } else if (result.getBefore() != null
+                } else if (result.getBefore() != null && result.getAfter() != null 
                         && !result.getBefore().getSourcePath().equals(result.getAfter().getSourcePath())) {
                     moved.add(result);
                 } else {
@@ -429,7 +426,8 @@ class Rewrite implements Callable<Integer> {
                 throw new IllegalStateException(
                         "Recipe validation errors detected as part of one or more activeRecipe(s). Please check error logs.");
             } else {
-                logger.error("Recipe validation errors detected as part of one or more activeRecipe(s). Execution will continue regardless.");
+                logger.error(
+                        "Recipe validation errors detected as part of one or more activeRecipe(s). Execution will continue regardless.");
             }
         }
 
@@ -528,7 +526,8 @@ class Rewrite implements Callable<Integer> {
             }
 
         } else {
-            logger.info("Skipping parsing of YAML, Properties, XML, and TOML files as no resources were discovered or discovery was disabled.");
+            logger.info(
+                    "Skipping parsing of YAML, Properties, XML, and TOML files as no resources were discovered or discovery was disabled.");
         }
 
         // Always attempt to parse Maven POM (typically pom.xml at baseDir)
@@ -629,26 +628,29 @@ class Rewrite implements Callable<Integer> {
 
         if (results.isNotEmpty()) {
             for (Result result : results.generated) {
-                assert result.getAfter() != null;
-                logger.warn("These recipes would generate new file {}:", result.getAfter().getSourcePath());
-                logRecipesThatMadeChanges(result);
+                if (result.getAfter() != null) {
+                    logger.warn("These recipes would generate new file {}:", result.getAfter().getSourcePath());
+                    logRecipesThatMadeChanges(result);
+                }
             }
             for (Result result : results.deleted) {
-                assert result.getBefore() != null;
-                logger.warn("These recipes would delete file {}:", result.getBefore().getSourcePath());
-                logRecipesThatMadeChanges(result);
+                if (result.getBefore() != null) {
+                    logger.warn("These recipes would delete file {}:", result.getBefore().getSourcePath());
+                    logRecipesThatMadeChanges(result);
+                }
             }
             for (Result result : results.moved) {
-                assert result.getBefore() != null;
-                assert result.getAfter() != null;
-                logger.warn("These recipes would move file from {} to {}:",
-                        result.getBefore().getSourcePath(), result.getAfter().getSourcePath());
-                logRecipesThatMadeChanges(result);
+                if (result.getBefore() != null && result.getAfter() != null) {
+                    logger.warn("These recipes would move file from {} to {}:",
+                            result.getBefore().getSourcePath(), result.getAfter().getSourcePath());
+                    logRecipesThatMadeChanges(result);
+                }
             }
             for (Result result : results.refactoredInPlace) {
-                assert result.getBefore() != null;
-                logger.warn("These recipes would make changes to {}:", result.getBefore().getSourcePath());
-                logRecipesThatMadeChanges(result);
+                if (result.getBefore() != null) {
+                    logger.warn("These recipes would make changes to {}:", result.getBefore().getSourcePath());
+                    logRecipesThatMadeChanges(result);
+                }
             }
 
             // Check return value of mkdirs()
@@ -686,84 +688,93 @@ class Rewrite implements Callable<Integer> {
 
         if (results.isNotEmpty()) {
             for (Result result : results.generated) {
-                assert result.getAfter() != null;
-                logger.warn("Generated new file {} by:", 
-                        result.getAfter().getSourcePath().normalize());
-                logRecipesThatMadeChanges(result);
+                if (result.getAfter() != null) {
+                    logger.warn("Generated new file {} by:",
+                            result.getAfter().getSourcePath().normalize());
+                    logRecipesThatMadeChanges(result);
+                }
             }
             for (Result result : results.deleted) {
-                assert result.getBefore() != null;
-                logger.warn("Deleted file {} by:",
-                        result.getBefore().getSourcePath().normalize());
-                logRecipesThatMadeChanges(result);
+                if (result.getBefore() != null) {
+                    logger.warn("Deleted file {} by:",
+                            result.getBefore().getSourcePath().normalize());
+                    logRecipesThatMadeChanges(result);
+                }
             }
             for (Result result : results.moved) {
-                assert result.getAfter() != null;
-                assert result.getBefore() != null;
-                logger.warn("File has been moved from {} to {} by:",
-                        result.getBefore().getSourcePath().normalize(),
-                        result.getAfter().getSourcePath().normalize());
-                logRecipesThatMadeChanges(result);
+                if (result.getAfter() != null && result.getBefore() != null) {
+                    logger.warn("File has been moved from {} to {} by:",
+                            result.getBefore().getSourcePath().normalize(),
+                            result.getAfter().getSourcePath().normalize());
+                    logRecipesThatMadeChanges(result);
+                }
             }
             for (Result result : results.refactoredInPlace) {
-                assert result.getBefore() != null;
-                logger.warn("Changes have been made to {} by:",
-                        result.getBefore().getSourcePath().normalize());
-                logRecipesThatMadeChanges(result);
+                if (result.getBefore() != null) {
+                    logger.warn("Changes have been made to {} by:",
+                            result.getBefore().getSourcePath().normalize());
+                    logRecipesThatMadeChanges(result);
+                }
             }
 
             logger.warn("Please review and commit the results.");
 
             try {
                 for (Result result : results.generated) {
-                    assert result.getAfter() != null;
-                    try (BufferedWriter sourceFileWriter = Files.newBufferedWriter(
-                            results.getProjectRoot().resolve(result.getAfter().getSourcePath()))) {
-                        Charset charset = result.getAfter().getCharset();
-                        sourceFileWriter.write(new String(result.getAfter().printAll().getBytes(charset), charset));
+                    if (result.getAfter() != null) {
+                        try (BufferedWriter sourceFileWriter = Files.newBufferedWriter(
+                                results.getProjectRoot().resolve(result.getAfter().getSourcePath()))) {
+                            Charset charset = result.getAfter().getCharset();
+                            sourceFileWriter.write(new String(result.getAfter().printAll().getBytes(charset), charset));
+                        }
                     }
                 }
                 for (Result result : results.deleted) {
-                    assert result.getBefore() != null;
-                    Path originalLocation = results.getProjectRoot().resolve(result.getBefore().getSourcePath())
-                            .normalize();
-                    boolean deleteSucceeded = originalLocation.toFile().delete();
-                    if (!deleteSucceeded) {
-                        throw new IOException(String.format("Unable to delete file %s", originalLocation.toAbsolutePath()));
+                    if (result.getBefore() != null) {
+                        Path originalLocation = results.getProjectRoot().resolve(result.getBefore().getSourcePath())
+                                .normalize();
+                        boolean deleteSucceeded = originalLocation.toFile().delete();
+                        if (!deleteSucceeded) {
+                            throw new IOException(
+                                    String.format("Unable to delete file %s", originalLocation.toAbsolutePath()));
+                        }
                     }
                 }
                 for (Result result : results.moved) {
                     // Should we try to use git to move the file first, and only if that fails fall
                     // back to this?
-                    assert result.getBefore() != null;
-                    Path originalLocation = results.getProjectRoot().resolve(result.getBefore().getSourcePath());
-                    boolean deleteSucceeded = originalLocation.toFile().delete();
-                    if (!deleteSucceeded) {
-                        throw new IOException(String.format("Unable to delete file %s", originalLocation.toAbsolutePath()));
+                    if (result.getBefore() != null) {
+                        Path originalLocation = results.getProjectRoot().resolve(result.getBefore().getSourcePath());
+                        boolean deleteSucceeded = originalLocation.toFile().delete();
+                        if (!deleteSucceeded) {
+                            throw new IOException(
+                                    String.format("Unable to delete file %s", originalLocation.toAbsolutePath()));
+                        }
                     }
-                    assert result.getAfter() != null;
-                    // Ensure directories exist in case something was moved into a hitherto
-                    // non-existent package
-                    Path afterLocation = results.getProjectRoot().resolve(result.getAfter().getSourcePath());
-                    File parentDir = afterLocation.toFile().getParentFile();
-                    
-                    // Check return value of mkdirs()
-                    if (!parentDir.exists() && !parentDir.mkdirs()) {
-                        logger.warn("Failed to create directory: {}", parentDir);
-                    }
-                    
-                    try (BufferedWriter sourceFileWriter = Files.newBufferedWriter(afterLocation)) {
-                        Charset charset = result.getAfter().getCharset();
-                        sourceFileWriter.write(new String(result.getAfter().printAll().getBytes(charset), charset));
+                    if (result.getAfter() != null) {
+                        // Ensure directories exist in case something was moved into a hitherto
+                        // non-existent package
+                        Path afterLocation = results.getProjectRoot().resolve(result.getAfter().getSourcePath());
+                        File parentDir = afterLocation.toFile().getParentFile();
+
+                        // Check return value of mkdirs()
+                        if (!parentDir.exists() && !parentDir.mkdirs()) {
+                            logger.warn("Failed to create directory: {}", parentDir);
+                        }
+
+                        try (BufferedWriter sourceFileWriter = Files.newBufferedWriter(afterLocation)) {
+                            Charset charset = result.getAfter().getCharset();
+                            sourceFileWriter.write(new String(result.getAfter().printAll().getBytes(charset), charset));
+                        }
                     }
                 }
                 for (Result result : results.refactoredInPlace) {
-                    assert result.getBefore() != null;
-                    try (BufferedWriter sourceFileWriter = Files.newBufferedWriter(
-                            results.getProjectRoot().resolve(result.getBefore().getSourcePath()))) {
-                        assert result.getAfter() != null;
-                        Charset charset = result.getAfter().getCharset();
-                        sourceFileWriter.write(new String(result.getAfter().printAll().getBytes(charset), charset));
+                    if (result.getBefore() != null && result.getAfter() != null) {
+                        try (BufferedWriter sourceFileWriter = Files.newBufferedWriter(
+                                results.getProjectRoot().resolve(result.getBefore().getSourcePath()))) {
+                            Charset charset = result.getAfter().getCharset();
+                            sourceFileWriter.write(new String(result.getAfter().printAll().getBytes(charset), charset));
+                        }
                     }
                 }
             } catch (IOException e) {
@@ -837,7 +848,7 @@ class Rewrite implements Callable<Integer> {
         }
 
         private void writeDiscovery(Collection<RecipeDescriptor> availableRecipeDescriptors,
-                                    Collection<RecipeDescriptor> activeRecipeDescriptors, Collection<NamedStyles> availableStyles) {
+                Collection<RecipeDescriptor> activeRecipeDescriptors, Collection<NamedStyles> availableStyles) {
             logger.info("Available Recipes:");
             for (RecipeDescriptor recipeDescriptor : availableRecipeDescriptors) {
                 writeRecipeDescriptor(recipeDescriptor, detail, 0, 1);
@@ -862,31 +873,32 @@ class Rewrite implements Callable<Integer> {
             }
 
             logger.info("");
-            logger.info("Found {} available recipes and {} available styles.", 
-                availableRecipeDescriptors.size(), availableStyles.size());
-            logger.info("Configured with {} active recipes and {} active styles.", 
-                activeRecipeDescriptors.size(), rewrite.activeStyles.size());
+            logger.info("Found {} available recipes and {} available styles.",
+                    availableRecipeDescriptors.size(), availableStyles.size());
+            logger.info("Configured with {} active recipes and {} active styles.",
+                    activeRecipeDescriptors.size(), rewrite.activeStyles.size());
         }
 
         private void writeRecipeDescriptor(RecipeDescriptor rd, boolean verbose, int currentRecursionLevel,
-                                           int indentLevel) {
+                int indentLevel) {
             String indent = StringUtils.repeat("    ", indentLevel * 4);
             if (currentRecursionLevel <= recursion) {
                 if (verbose) {
                     logger.info("{}{}", indent, rd.getDisplayName());
                     logger.info("{}    {}", indent, rd.getName());
-                    if (!rd.getDescription().isEmpty()) {
-                        logger.info("{}    {}", indent, rd.getDescription());
+                    String description = rd.getDescription();
+                    if (description != null && !description.isEmpty()) {
+                        logger.info("{}    {}", indent, description);
                     }
 
                     if (!rd.getOptions().isEmpty()) {
                         logger.info("{}options: ", indent);
                         for (OptionDescriptor od : rd.getOptions()) {
-                            logger.info("{}    {}: {}{}", 
-                                indent, 
-                                od.getName(), 
-                                od.getType(),
-                                od.isRequired() ? "!" : "");
+                            logger.info("{}    {}: {}{}",
+                                    indent,
+                                    od.getName(),
+                                    od.getType(),
+                                    od.isRequired() ? "!" : "");
                             if (od.getDescription() != null && !od.getDescription().isEmpty()) {
                                 logger.info("{}        {}", indent, od.getDescription());
                             }
