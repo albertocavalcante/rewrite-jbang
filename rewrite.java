@@ -5,7 +5,7 @@
 //DEPS org.slf4j:slf4j-nop:2.0.16
 //DEPS org.apache.maven:maven-core:3.9.9
 
-//DEPS org.openrewrite:rewrite-bom:8.35.2@pom
+//DEPS org.openrewrite:rewrite-bom:8.36.0@pom
 //DEPS org.openrewrite:rewrite-core
 //DEPS org.openrewrite:rewrite-java
 //DEPS org.openrewrite:rewrite-java-8
