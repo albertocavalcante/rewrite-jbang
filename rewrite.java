@@ -24,8 +24,10 @@ import static java.util.Collections.emptySet;
 import static java.util.stream.Collectors.joining;
 
 import java.io.BufferedWriter;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
+import java.io.PrintStream;
 import java.nio.charset.Charset;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
@@ -42,6 +44,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.stream.Stream;
+import java.util.regex.Pattern;
 
 import org.apache.maven.execution.DefaultMavenExecutionRequest;
 import org.apache.maven.execution.MavenExecutionRequest;
@@ -79,6 +82,15 @@ import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import org.fusesource.jansi.AnsiConsole;
 
+// Logback imports
+import ch.qos.logback.classic.LoggerContext;
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.encoder.PatternLayoutEncoder;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.ConsoleAppender;
+import ch.qos.logback.core.filter.Filter;
+import ch.qos.logback.core.spi.FilterReply;
+
 @Command(name = "rewrite", mixinStandardHelpOptions = true, version = "rewrite 0.2", description = "rewrite made with jbang", subcommands = Rewrite.RewriteDiscover.class)
 class Rewrite implements Callable<Integer> {
 
@@ -89,6 +101,326 @@ class Rewrite implements Callable<Integer> {
 
     // SLF4J Logger - making it public static so inner classes can access it
     public static final Logger logger = LoggerFactory.getLogger(Rewrite.class);
+    
+    // Custom logger wrapper to filter out timestamp-formatted logs
+    private static class FilteredLogger implements Logger {
+        private final Logger delegate;
+        private static final Pattern timestampPattern = 
+            Pattern.compile("\\d{2}:\\d{2}:\\d{2}\\.\\d{3}.*|.*\\[main\\].*|.*INFO\\s+Rewrite\\s*--.*");
+        
+        public FilteredLogger(Logger delegate) {
+            this.delegate = delegate;
+        }
+        
+        private boolean shouldFilter(String msg) {
+            return msg != null && timestampPattern.matcher(msg).matches();
+        }
+
+        @Override
+        public String getName() {
+            return delegate.getName();
+        }
+
+        @Override
+        public boolean isTraceEnabled() {
+            return delegate.isTraceEnabled();
+        }
+
+        @Override
+        public void trace(String msg) {
+            if (!shouldFilter(msg)) delegate.trace(msg);
+        }
+
+        @Override
+        public void trace(String format, Object arg) {
+            if (!shouldFilter(format)) delegate.trace(format, arg);
+        }
+
+        @Override
+        public void trace(String format, Object arg1, Object arg2) {
+            if (!shouldFilter(format)) delegate.trace(format, arg1, arg2);
+        }
+
+        @Override
+        public void trace(String format, Object... arguments) {
+            if (!shouldFilter(format)) delegate.trace(format, arguments);
+        }
+
+        @Override
+        public void trace(String msg, Throwable t) {
+            if (!shouldFilter(msg)) delegate.trace(msg, t);
+        }
+
+        @Override
+        public boolean isTraceEnabled(org.slf4j.Marker marker) {
+            return delegate.isTraceEnabled(marker);
+        }
+
+        @Override
+        public void trace(org.slf4j.Marker marker, String msg) {
+            if (!shouldFilter(msg)) delegate.trace(marker, msg);
+        }
+
+        @Override
+        public void trace(org.slf4j.Marker marker, String format, Object arg) {
+            if (!shouldFilter(format)) delegate.trace(marker, format, arg);
+        }
+
+        @Override
+        public void trace(org.slf4j.Marker marker, String format, Object arg1, Object arg2) {
+            if (!shouldFilter(format)) delegate.trace(marker, format, arg1, arg2);
+        }
+
+        @Override
+        public void trace(org.slf4j.Marker marker, String format, Object... argArray) {
+            if (!shouldFilter(format)) delegate.trace(marker, format, argArray);
+        }
+
+        @Override
+        public void trace(org.slf4j.Marker marker, String msg, Throwable t) {
+            if (!shouldFilter(msg)) delegate.trace(marker, msg, t);
+        }
+
+        @Override
+        public boolean isDebugEnabled() {
+            return delegate.isDebugEnabled();
+        }
+
+        @Override
+        public void debug(String msg) {
+            if (!shouldFilter(msg)) delegate.debug(msg);
+        }
+
+        @Override
+        public void debug(String format, Object arg) {
+            if (!shouldFilter(format)) delegate.debug(format, arg);
+        }
+
+        @Override
+        public void debug(String format, Object arg1, Object arg2) {
+            if (!shouldFilter(format)) delegate.debug(format, arg1, arg2);
+        }
+
+        @Override
+        public void debug(String format, Object... arguments) {
+            if (!shouldFilter(format)) delegate.debug(format, arguments);
+        }
+
+        @Override
+        public void debug(String msg, Throwable t) {
+            if (!shouldFilter(msg)) delegate.debug(msg, t);
+        }
+
+        @Override
+        public boolean isDebugEnabled(org.slf4j.Marker marker) {
+            return delegate.isDebugEnabled(marker);
+        }
+
+        @Override
+        public void debug(org.slf4j.Marker marker, String msg) {
+            if (!shouldFilter(msg)) delegate.debug(marker, msg);
+        }
+
+        @Override
+        public void debug(org.slf4j.Marker marker, String format, Object arg) {
+            if (!shouldFilter(format)) delegate.debug(marker, format, arg);
+        }
+
+        @Override
+        public void debug(org.slf4j.Marker marker, String format, Object arg1, Object arg2) {
+            if (!shouldFilter(format)) delegate.debug(marker, format, arg1, arg2);
+        }
+
+        @Override
+        public void debug(org.slf4j.Marker marker, String format, Object... arguments) {
+            if (!shouldFilter(format)) delegate.debug(marker, format, arguments);
+        }
+
+        @Override
+        public void debug(org.slf4j.Marker marker, String msg, Throwable t) {
+            if (!shouldFilter(msg)) delegate.debug(marker, msg, t);
+        }
+
+        @Override
+        public boolean isInfoEnabled() {
+            return delegate.isInfoEnabled();
+        }
+
+        @Override
+        public void info(String msg) {
+            if (!shouldFilter(msg)) delegate.info(msg);
+        }
+
+        @Override
+        public void info(String format, Object arg) {
+            if (!shouldFilter(format)) delegate.info(format, arg);
+        }
+
+        @Override
+        public void info(String format, Object arg1, Object arg2) {
+            if (!shouldFilter(format)) delegate.info(format, arg1, arg2);
+        }
+
+        @Override
+        public void info(String format, Object... arguments) {
+            if (!shouldFilter(format)) delegate.info(format, arguments);
+        }
+
+        @Override
+        public void info(String msg, Throwable t) {
+            if (!shouldFilter(msg)) delegate.info(msg, t);
+        }
+
+        @Override
+        public boolean isInfoEnabled(org.slf4j.Marker marker) {
+            return delegate.isInfoEnabled(marker);
+        }
+
+        @Override
+        public void info(org.slf4j.Marker marker, String msg) {
+            if (!shouldFilter(msg)) delegate.info(marker, msg);
+        }
+
+        @Override
+        public void info(org.slf4j.Marker marker, String format, Object arg) {
+            if (!shouldFilter(format)) delegate.info(marker, format, arg);
+        }
+
+        @Override
+        public void info(org.slf4j.Marker marker, String format, Object arg1, Object arg2) {
+            if (!shouldFilter(format)) delegate.info(marker, format, arg1, arg2);
+        }
+
+        @Override
+        public void info(org.slf4j.Marker marker, String format, Object... arguments) {
+            if (!shouldFilter(format)) delegate.info(marker, format, arguments);
+        }
+
+        @Override
+        public void info(org.slf4j.Marker marker, String msg, Throwable t) {
+            if (!shouldFilter(msg)) delegate.info(marker, msg, t);
+        }
+
+        @Override
+        public boolean isWarnEnabled() {
+            return delegate.isWarnEnabled();
+        }
+
+        @Override
+        public void warn(String msg) {
+            if (!shouldFilter(msg)) delegate.warn(msg);
+        }
+
+        @Override
+        public void warn(String format, Object arg) {
+            if (!shouldFilter(format)) delegate.warn(format, arg);
+        }
+
+        @Override
+        public void warn(String format, Object... arguments) {
+            if (!shouldFilter(format)) delegate.warn(format, arguments);
+        }
+
+        @Override
+        public void warn(String format, Object arg1, Object arg2) {
+            if (!shouldFilter(format)) delegate.warn(format, arg1, arg2);
+        }
+
+        @Override
+        public void warn(String msg, Throwable t) {
+            if (!shouldFilter(msg)) delegate.warn(msg, t);
+        }
+
+        @Override
+        public boolean isWarnEnabled(org.slf4j.Marker marker) {
+            return delegate.isWarnEnabled(marker);
+        }
+
+        @Override
+        public void warn(org.slf4j.Marker marker, String msg) {
+            if (!shouldFilter(msg)) delegate.warn(marker, msg);
+        }
+
+        @Override
+        public void warn(org.slf4j.Marker marker, String format, Object arg) {
+            if (!shouldFilter(format)) delegate.warn(marker, format, arg);
+        }
+
+        @Override
+        public void warn(org.slf4j.Marker marker, String format, Object arg1, Object arg2) {
+            if (!shouldFilter(format)) delegate.warn(marker, format, arg1, arg2);
+        }
+
+        @Override
+        public void warn(org.slf4j.Marker marker, String format, Object... arguments) {
+            if (!shouldFilter(format)) delegate.warn(marker, format, arguments);
+        }
+
+        @Override
+        public void warn(org.slf4j.Marker marker, String msg, Throwable t) {
+            if (!shouldFilter(msg)) delegate.warn(marker, msg, t);
+        }
+
+        @Override
+        public boolean isErrorEnabled() {
+            return delegate.isErrorEnabled();
+        }
+
+        @Override
+        public void error(String msg) {
+            if (!shouldFilter(msg)) delegate.error(msg);
+        }
+
+        @Override
+        public void error(String format, Object arg) {
+            if (!shouldFilter(format)) delegate.error(format, arg);
+        }
+
+        @Override
+        public void error(String format, Object arg1, Object arg2) {
+            if (!shouldFilter(format)) delegate.error(format, arg1, arg2);
+        }
+
+        @Override
+        public void error(String format, Object... arguments) {
+            if (!shouldFilter(format)) delegate.error(format, arguments);
+        }
+
+        @Override
+        public void error(String msg, Throwable t) {
+            if (!shouldFilter(msg)) delegate.error(msg, t);
+        }
+
+        @Override
+        public boolean isErrorEnabled(org.slf4j.Marker marker) {
+            return delegate.isErrorEnabled(marker);
+        }
+
+        @Override
+        public void error(org.slf4j.Marker marker, String msg) {
+            if (!shouldFilter(msg)) delegate.error(marker, msg);
+        }
+
+        @Override
+        public void error(org.slf4j.Marker marker, String format, Object arg) {
+            if (!shouldFilter(format)) delegate.error(marker, format, arg);
+        }
+
+        @Override
+        public void error(org.slf4j.Marker marker, String format, Object arg1, Object arg2) {
+            if (!shouldFilter(format)) delegate.error(marker, format, arg1, arg2);
+        }
+
+        @Override
+        public void error(org.slf4j.Marker marker, String format, Object... arguments) {
+            if (!shouldFilter(format)) delegate.error(marker, format, arguments);
+        }
+
+        @Override
+        public void error(org.slf4j.Marker marker, String msg, Throwable t) {
+            if (!shouldFilter(msg)) delegate.error(marker, msg, t);
+        }
+    }
 
     public static Rewrite getInstance() {
         return INSTANCE;
@@ -150,9 +482,9 @@ class Rewrite implements Callable<Integer> {
     boolean noColor;
 
     public static void main(String... args) {
-        // Logback is configured via the default logback.xml lookup
-        // This provides colored output by default thanks to Jansi
-
+        // Configure Logback programmatically before anything else
+        configureLogbackProgrammatically();
+        
         // Install Jansi for cross-platform ANSI color support
         AnsiConsole.systemInstall();
         try {
@@ -164,6 +496,108 @@ class Rewrite implements Callable<Integer> {
         } finally {
             // Clean up Jansi when done
             AnsiConsole.systemUninstall();
+        }
+    }
+    
+    /**
+     * Configure Logback programmatically, without using logback.xml
+     */
+    private static void configureLogbackProgrammatically() {
+        // Completely disable SLF4J/Logback startup messages
+        System.setProperty("logback.statusListenerClass", "ch.qos.logback.core.status.NopStatusListener");
+        
+        // Get the LoggerContext
+        LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
+        
+        // Reset any existing configuration
+        context.reset();
+        
+        // Create a pattern encoder for normal output without timestamps or thread names
+        PatternLayoutEncoder mainEncoder = new PatternLayoutEncoder();
+        mainEncoder.setContext(context);
+        mainEncoder.setPattern("%msg%n");
+        mainEncoder.start();
+        
+        // Create our custom appender with colorization and filtering
+        PicoCLIFilteringAppender mainAppender = new PicoCLIFilteringAppender();
+        mainAppender.setContext(context);
+        mainAppender.setEncoder(mainEncoder);
+        mainAppender.start();
+        
+        // Explicitly handle specific loggers
+        
+        // Turn off all Logback's internal logging
+        ch.qos.logback.classic.Logger logbackLogger = context.getLogger("ch.qos.logback");
+        logbackLogger.setLevel(Level.OFF);
+        
+        // Suppress the specific troublesome logger
+        ch.qos.logback.classic.Logger rewriteJavaLogger = context.getLogger("org.openrewrite.java.JavaParser");
+        rewriteJavaLogger.setLevel(Level.OFF);
+        
+        ch.qos.logback.classic.Logger isolatedJavaLogger = context.getLogger("org.openrewrite.java.isolated");
+        isolatedJavaLogger.setLevel(Level.OFF);
+        
+        // Set minimal level for all OpenRewrite logs
+        ch.qos.logback.classic.Logger openrewriteLogger = context.getLogger("org.openrewrite");
+        openrewriteLogger.setLevel(Level.WARN);
+        
+        // Configure root logger with our custom appender
+        ch.qos.logback.classic.Logger rootLogger = context.getLogger(ch.qos.logback.classic.Logger.ROOT_LOGGER_NAME);
+        rootLogger.setLevel(Level.INFO);
+        rootLogger.addAppender(mainAppender);
+    }
+    
+    /**
+     * Custom Logback appender that colorizes and filters log messages
+     */
+    static class PicoCLIFilteringAppender extends ConsoleAppender<ILoggingEvent> {
+        // Pattern to detect the log lines we want to filter out
+        private static final Pattern FILTER_PATTERN = Pattern.compile(
+            "\\d{2}:\\d{2}:\\d{2}\\.\\d{3}.*|.*\\[main\\].*|.*INFO\\s+Rewrite\\s*--.*");
+            
+        @Override
+        protected void append(ILoggingEvent event) {
+            // Skip unwanted log messages that match our pattern
+            if (shouldFilter(event)) {
+                return;
+            }
+            
+            // Format the message
+            String formattedMessage = new String(encoder.encode(event));
+            
+            // Apply appropriate color based on log level
+            String colorizedMessage = colorizeByLevel(event, formattedMessage);
+            
+            // Output to console
+            System.out.print(colorizedMessage);
+        }
+        
+        private boolean shouldFilter(ILoggingEvent event) {
+            // Filter out empty messages
+            if (event.getMessage() == null || event.getMessage().isEmpty()) {
+                return true;
+            }
+            
+            // Filter based on our pattern
+            if (FILTER_PATTERN.matcher(event.getMessage()).matches()) {
+                return true;
+            }
+            
+            // Filter based on formatted message (with arguments)
+            String formattedMessage = event.getFormattedMessage();
+            return FILTER_PATTERN.matcher(formattedMessage).matches();
+        }
+        
+        private String colorizeByLevel(ILoggingEvent event, String message) {
+            String template = switch (event.getLevel().toInt()) {
+                case Level.ERROR_INT -> "@|red %s|@";        // Red for errors
+                case Level.WARN_INT -> "@|yellow %s|@";     // Yellow for warnings
+                case Level.INFO_INT -> "@|green %s|@";      // Green for info
+                case Level.DEBUG_INT -> "@|blue %s|@";      // Blue for debug
+                default -> "%s";                            // No color for other levels
+            };
+            
+            return CommandLine.Help.Ansi.AUTO.string(String.format(template, message));
         }
     }
 
