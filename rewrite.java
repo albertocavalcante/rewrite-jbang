@@ -4,7 +4,7 @@
 
 //REPOS mavencentral
 //DEPS info.picocli:picocli:4.7.6
-//DEPS org.slf4j:slf4j-simple:2.0.17
+//DEPS ch.qos.logback:logback-classic:1.5.3
 //DEPS org.fusesource.jansi:jansi:2.4.1
 //DEPS org.apache.maven:maven-core:3.9.9
 
@@ -150,14 +150,8 @@ class Rewrite implements Callable<Integer> {
     boolean noColor;
 
     public static void main(String... args) {
-        // Configure slf4j-simple to format output similar to previous implementation
-        System.setProperty("org.slf4j.simpleLogger.showThreadName", "false");
-        System.setProperty("org.slf4j.simpleLogger.levelInBrackets", "true");
-        System.setProperty("org.slf4j.simpleLogger.showLogName", "false");
-        System.setProperty("org.slf4j.simpleLogger.showDateTime", "false");
-
-        // Suppress warnings from ReloadableJava11Parser
-        System.setProperty("org.slf4j.simpleLogger.log.org.openrewrite.java.isolated.ReloadableJava11Parser", "ERROR");
+        // Logback is configured via the default logback.xml lookup
+        // This provides colored output by default thanks to Jansi
 
         // Install Jansi for cross-platform ANSI color support
         AnsiConsole.systemInstall();
