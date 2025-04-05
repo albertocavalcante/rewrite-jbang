@@ -110,6 +110,39 @@ Let `P` be the previously processed plugin tag and `C` be the current tag being 
     * Identify the next tag `N`.
     * **Wait for user authorization before starting analysis for tag `N`.**
 
+## Code Quality and SonarQube Issues
+
+Based on our experience with SonarQube analysis, here are key guidelines for maintaining code quality:
+
+1. **Prioritizing SonarQube Issues:**
+   * Focus on critical issues: security vulnerabilities, bugs, and performance problems
+   * Address code smells that affect readability and maintainability
+   * Maintain a local `false-positives.txt` file (never committed) to document issues we won't fix
+
+2. **Handling JBang-Specific Limitations:**
+   * Package declarations (S1220) are not applicable to JBang scripts
+   * Some "Monster Class" warnings (S6539) are acceptable for a single-file utility
+   * Document these exceptions in the local `false-positives.txt` file
+
+3. **Key Refactoring Patterns:**
+   * Extract repeated operations into helper methods (S1141)
+   * Create custom exception classes rather than using generic ones (S112)
+   * Add null checks before dereferencing objects (S2259)
+   * Make logger statements conditional based on log level (S2629)
+   * Use constants for duplicated string literals (S1192)
+   * Simplify lambdas by removing unnecessary braces (S1602)
+   * Use Files.delete() instead of File.delete() for better error messages (S4042)
+
+4. **JBang-Specific Optimizations:**
+   * Add `-proc:none` to COMPILE_OPTIONS to disable annotation processing
+   * Only commit changes to rewrite.java, not auxiliary files like false-positives.txt
+   * Keep build-specific files in .gitignore
+
+5. **Testing Process After SonarQube-Related Refactoring:**
+   * Verify all core functionality works with `jbang rewrite.java --recipes org.openrewrite.java.format.AutoFormat --dry-run`
+   * Test error handling by intentionally using invalid inputs
+   * Check performance with larger projects if major changes were made
+
 ## Learnings from v8.x Upgrade
 
 Based on our experience upgrading to OpenRewrite v8.49.0, here are key insights for future upgrades:
@@ -153,6 +186,10 @@ Based on our experience upgrading to OpenRewrite v8.49.0, here are key insights 
 2. **API Changes:**
    * `feat: Update OpenRewrite BOM to [version] and adapt to API changes (aligns with plugin [tag])`
    * Include details about significant API changes in the commit message body if needed.
+
+3. **Code Quality or Bug Fixes:**
+   * `fix: Improve code quality by applying SonarQube recommendations`
+   * `fix: Disable annotation processing to eliminate build warnings`
 
 ## Specific v8.x API Changes to Know
 
