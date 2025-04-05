@@ -192,51 +192,90 @@ class Rewrite implements Callable<Integer> {
 
     private MavenSettings buildSettings() {
         MavenExecutionRequest mer = new DefaultMavenExecutionRequest();
+        
+        String localRepo = determineLocalRepository(mer);
+        MavenSettings.Profiles profiles = buildProfiles(mer);
+        MavenSettings.ActiveProfiles activeProfiles = extractActiveProfiles(mer);
+        MavenSettings.Mirrors mirrors = buildMirrors(mer);
+        MavenSettings.Servers servers = createEmptyServers();
 
-        // Provide a default local repository path if not set
+        return new MavenSettings(localRepo, profiles, activeProfiles, mirrors, servers);
+    }
+    
+    private String determineLocalRepository(MavenExecutionRequest mer) {
         File localRepoPath = mer.getLocalRepositoryPath();
-        String localRepo = (localRepoPath != null)
+        return (localRepoPath != null)
                 ? localRepoPath.toString()
                 : Paths.get(System.getProperty("user.home"), ".m2", "repository").toString();
-
+    }
+    
+    private MavenSettings.Profiles buildProfiles(MavenExecutionRequest mer) {
         MavenSettings.Profiles profiles = new MavenSettings.Profiles();
         profiles.setProfiles(
-                mer.getProfiles().stream().map(p -> {
-                    // Extract nested ternary operation
-                    ProfileActivation.Property activationProperty = null;
-                    if (p.getActivation() != null && p.getActivation().getProperty() != null) {
-                        activationProperty = new ProfileActivation.Property(
-                                p.getActivation().getProperty().getName(),
-                                p.getActivation().getProperty().getValue());
-                    }
-
-                    return new MavenSettings.Profile(
-                            p.getId(),
-                            p.getActivation() == null ? null
-                                    : new ProfileActivation(
-                                            p.getActivation().isActiveByDefault(),
-                                            p.getActivation().getJdk(),
-                                            activationProperty),
-                            buildRawRepositories(p.getRepositories()));
-                }).toList());
-
+                mer.getProfiles().stream()
+                   .map(this::convertProfile)
+                   .toList());
+        return profiles;
+    }
+    
+    private MavenSettings.Profile convertProfile(org.apache.maven.model.Profile p) {
+        ProfileActivation.Property activationProperty = extractActivationProperty(p);
+        
+        return new MavenSettings.Profile(
+                p.getId(),
+                createProfileActivation(p, activationProperty),
+                buildRawRepositories(p.getRepositories()));
+    }
+    
+    private ProfileActivation.Property extractActivationProperty(org.apache.maven.model.Profile p) {
+        if (p.getActivation() != null && p.getActivation().getProperty() != null) {
+            return new ProfileActivation.Property(
+                    p.getActivation().getProperty().getName(),
+                    p.getActivation().getProperty().getValue());
+        }
+        return null;
+    }
+    
+    private ProfileActivation createProfileActivation(org.apache.maven.model.Profile p, ProfileActivation.Property property) {
+        if (p.getActivation() == null) {
+            return null;
+        }
+        
+        return new ProfileActivation(
+                p.getActivation().isActiveByDefault(),
+                p.getActivation().getJdk(),
+                property);
+    }
+    
+    private MavenSettings.ActiveProfiles extractActiveProfiles(MavenExecutionRequest mer) {
         MavenSettings.ActiveProfiles activeProfiles = new MavenSettings.ActiveProfiles();
         List<String> merActiveProfiles = mer.getActiveProfiles();
         activeProfiles.setActiveProfiles(merActiveProfiles != null ? merActiveProfiles : Collections.emptyList());
-
+        return activeProfiles;
+    }
+    
+    private MavenSettings.Mirrors buildMirrors(MavenExecutionRequest mer) {
         MavenSettings.Mirrors mirrors = new MavenSettings.Mirrors();
         mirrors.setMirrors(
-                mer.getMirrors().stream().map(m -> new MavenSettings.Mirror(
-                        m.getId(),
-                        m.getUrl(),
-                        m.getMirrorOf(),
-                        null,
-                        null)).toList());
-
+                mer.getMirrors().stream()
+                   .map(this::convertMirror)
+                   .toList());
+        return mirrors;
+    }
+    
+    private MavenSettings.Mirror convertMirror(org.apache.maven.settings.Mirror m) {
+        return new MavenSettings.Mirror(
+                m.getId(),
+                m.getUrl(),
+                m.getMirrorOf(),
+                null,
+                null);
+    }
+    
+    private MavenSettings.Servers createEmptyServers() {
         MavenSettings.Servers servers = new MavenSettings.Servers();
         servers.setServers(emptyList());
-
-        return new MavenSettings(localRepo, profiles, activeProfiles, mirrors, servers);
+        return servers;
     }
 
     public Xml.Document parseMaven(ExecutionContext ctx) {
