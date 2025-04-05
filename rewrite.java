@@ -684,19 +684,19 @@ class Rewrite implements Callable<Integer> {
                             try {
                                 writer.write(diff + "\n");
                             } catch (IOException e) {
-                                throw new RuntimeException(e);
+                                throw new RewriteExecutionException("Failed to write diff", e);
                             }
                         });
 
             } catch (Exception e) {
-                throw new IllegalStateException("Unable to generate rewrite result file.", e);
+                throw new RewriteExecutionException("Unable to generate rewrite result file", e);
             }
             logger.warn("Report available:");
             logger.warn("    {}", patchFile.normalize());
             // logger.warn("Run 'mvn rewrite:run' to apply the recipes.");
 
             if (failOnDryRunResults) {
-                throw new IllegalStateException("Applying recipes would make changes. See logs for more details.");
+                throw new RewriteExecutionException("Applying recipes would make changes. See logs for more details.");
             }
         }
     }
@@ -740,11 +740,10 @@ class Rewrite implements Callable<Integer> {
             try {
                 for (Result result : results.generated) {
                     if (result.getAfter() != null) {
-                        try (BufferedWriter sourceFileWriter = Files.newBufferedWriter(
-                                results.getProjectRoot().resolve(result.getAfter().getSourcePath()))) {
-                            Charset charset = result.getAfter().getCharset();
-                            sourceFileWriter.write(new String(result.getAfter().printAll().getBytes(charset), charset));
-                        }
+                        Path targetPath = results.getProjectRoot().resolve(result.getAfter().getSourcePath());
+                        Charset charset = result.getAfter().getCharset();
+                        String content = new String(result.getAfter().printAll().getBytes(charset), charset);
+                        writeFileContent(targetPath, charset, content);
                     }
                 }
                 for (Result result : results.deleted) {
@@ -782,23 +781,21 @@ class Rewrite implements Callable<Integer> {
                             logger.warn("Failed to create directory: {}", parentDir);
                         }
 
-                        try (BufferedWriter sourceFileWriter = Files.newBufferedWriter(afterLocation)) {
-                            Charset charset = result.getAfter().getCharset();
-                            sourceFileWriter.write(new String(result.getAfter().printAll().getBytes(charset), charset));
-                        }
+                        Charset charset = result.getAfter().getCharset();
+                        String content = new String(result.getAfter().printAll().getBytes(charset), charset);
+                        writeFileContent(afterLocation, charset, content);
                     }
                 }
                 for (Result result : results.refactoredInPlace) {
                     if (result.getBefore() != null && result.getAfter() != null) {
-                        try (BufferedWriter sourceFileWriter = Files.newBufferedWriter(
-                                results.getProjectRoot().resolve(result.getBefore().getSourcePath()))) {
-                            Charset charset = result.getAfter().getCharset();
-                            sourceFileWriter.write(new String(result.getAfter().printAll().getBytes(charset), charset));
-                        }
+                        Path targetPath = results.getProjectRoot().resolve(result.getBefore().getSourcePath());
+                        Charset charset = result.getAfter().getCharset();
+                        String content = new String(result.getAfter().printAll().getBytes(charset), charset);
+                        writeFileContent(targetPath, charset, content);
                     }
                 }
             } catch (IOException e) {
-                throw new RuntimeException("Unable to rewrite source files", e);
+                throw new RewriteExecutionException("Unable to rewrite source files", e);
             }
         }
     }
@@ -819,7 +816,7 @@ class Rewrite implements Callable<Integer> {
         return recipeDescriptors.stream()
                 .filter(r -> r.getName().equalsIgnoreCase(recipe))
                 .findAny()
-                .orElseThrow(() -> new IllegalStateException(String.format(RECIPE_NOT_FOUND_EXCEPTION_MSG, recipe)));
+                .orElseThrow(() -> new RecipeNotFoundException(recipe));
     }
 
     @CommandLine.Command(name = "discover")
@@ -901,7 +898,7 @@ class Rewrite implements Callable<Integer> {
 
         private void writeRecipeDescriptor(RecipeDescriptor rd, boolean verbose, int currentRecursionLevel,
                 int indentLevel) {
-            String indent = StringUtils.repeat("    ", indentLevel * 4);
+            String indent = StringUtils.repeat(INDENT_SPACES, indentLevel * 4);
             if (currentRecursionLevel <= recursion) {
                 if (verbose) {
                     logger.info("{}{}", indent, rd.getDisplayName());
@@ -941,6 +938,30 @@ class Rewrite implements Callable<Integer> {
             }
         }
 
+    }
+
+    // Helper method to write file content
+    private void writeFileContent(Path targetPath, Charset charset, String content) throws IOException {
+        try (BufferedWriter sourceFileWriter = Files.newBufferedWriter(targetPath)) {
+            sourceFileWriter.write(content);
+        }
+    }
+
+    // Custom exception classes
+    static class RewriteExecutionException extends RuntimeException {
+        public RewriteExecutionException(String message) {
+            super(message);
+        }
+        
+        public RewriteExecutionException(String message, Throwable cause) {
+            super(message, cause);
+        }
+    }
+
+    static class RecipeNotFoundException extends IllegalStateException {
+        public RecipeNotFoundException(String recipe) {
+            super(String.format("Could not find recipe '%s' among available recipes", recipe));
+        }
     }
 
 }
