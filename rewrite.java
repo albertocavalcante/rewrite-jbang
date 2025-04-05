@@ -657,63 +657,91 @@ class Rewrite implements Callable<Integer> {
         }
     }
 
+    // Extract method to report generated files
+    private void reportGeneratedFiles(ResultsContainer results) {
+        for (Result result : results.generated) {
+            if (result.getAfter() != null) {
+                logger.warn("These recipes would generate new file {}:", result.getAfter().getSourcePath());
+                logRecipesThatMadeChanges(result);
+            }
+        }
+    }
+    
+    // Extract method to report deleted files
+    private void reportDeletedFiles(ResultsContainer results) {
+        for (Result result : results.deleted) {
+            if (result.getBefore() != null) {
+                logger.warn("These recipes would delete file {}:", result.getBefore().getSourcePath());
+                logRecipesThatMadeChanges(result);
+            }
+        }
+    }
+    
+    // Extract method to report moved files
+    private void reportMovedFiles(ResultsContainer results) {
+        for (Result result : results.moved) {
+            if (result.getBefore() != null && result.getAfter() != null) {
+                logger.warn("These recipes would move file from {} to {}:",
+                        result.getBefore().getSourcePath(), result.getAfter().getSourcePath());
+                logRecipesThatMadeChanges(result);
+            }
+        }
+    }
+    
+    // Extract method to report refactored files
+    private void reportRefactoredFiles(ResultsContainer results) {
+        for (Result result : results.refactoredInPlace) {
+            if (result.getBefore() != null) {
+                logger.warn("These recipes would make changes to {}:", result.getBefore().getSourcePath());
+                logRecipesThatMadeChanges(result);
+            }
+        }
+    }
+    
+    // Extract method to write patch file
+    private void writePatchFile(ResultsContainer results) {
+        // Check return value of mkdirs()
+        if (!reportOutputDirectory.mkdirs() && !reportOutputDirectory.exists()) {
+            logger.warn("Failed to create directory: {}", reportOutputDirectory);
+        }
+
+        Path patchFile = reportOutputDirectory.toPath().resolve("rewrite.patch");
+        try (BufferedWriter writer = Files.newBufferedWriter(patchFile)) {
+            Stream.concat(Stream.concat(results.generated.stream(), results.deleted.stream()),
+                    Stream.concat(results.moved.stream(), results.refactoredInPlace.stream())).map(Result::diff)
+                    .forEach(diff -> {
+                        try {
+                            writer.write(diff + "\n");
+                        } catch (IOException e) {
+                            throw new RewriteExecutionException("Failed to write diff", e);
+                        }
+                    });
+        } catch (Exception e) {
+            throw new RewriteExecutionException("Unable to generate rewrite result file", e);
+        }
+        
+        logger.warn("Report available:");
+        logger.warn("    {}", patchFile.normalize());
+    }
+
     void performDryRun() {
         ResultsContainer results = listResults();
 
-        if (results.isNotEmpty()) {
-            for (Result result : results.generated) {
-                if (result.getAfter() != null) {
-                    logger.warn("These recipes would generate new file {}:", result.getAfter().getSourcePath());
-                    logRecipesThatMadeChanges(result);
-                }
-            }
-            for (Result result : results.deleted) {
-                if (result.getBefore() != null) {
-                    logger.warn("These recipes would delete file {}:", result.getBefore().getSourcePath());
-                    logRecipesThatMadeChanges(result);
-                }
-            }
-            for (Result result : results.moved) {
-                if (result.getBefore() != null && result.getAfter() != null) {
-                    logger.warn("These recipes would move file from {} to {}:",
-                            result.getBefore().getSourcePath(), result.getAfter().getSourcePath());
-                    logRecipesThatMadeChanges(result);
-                }
-            }
-            for (Result result : results.refactoredInPlace) {
-                if (result.getBefore() != null) {
-                    logger.warn("These recipes would make changes to {}:", result.getBefore().getSourcePath());
-                    logRecipesThatMadeChanges(result);
-                }
-            }
-
-            // Check return value of mkdirs()
-            if (!reportOutputDirectory.mkdirs() && !reportOutputDirectory.exists()) {
-                logger.warn("Failed to create directory: {}", reportOutputDirectory);
-            }
-
-            Path patchFile = reportOutputDirectory.toPath().resolve("rewrite.patch");
-            try (BufferedWriter writer = Files.newBufferedWriter(patchFile)) {
-                Stream.concat(Stream.concat(results.generated.stream(), results.deleted.stream()),
-                        Stream.concat(results.moved.stream(), results.refactoredInPlace.stream())).map(Result::diff)
-                        .forEach(diff -> {
-                            try {
-                                writer.write(diff + "\n");
-                            } catch (IOException e) {
-                                throw new RewriteExecutionException("Failed to write diff", e);
-                            }
-                        });
-
-            } catch (Exception e) {
-                throw new RewriteExecutionException("Unable to generate rewrite result file", e);
-            }
-            logger.warn("Report available:");
-            logger.warn("    {}", patchFile.normalize());
-            // logger.warn("Run 'mvn rewrite:run' to apply the recipes.");
-
-            if (failOnDryRunResults) {
-                throw new RewriteExecutionException("Applying recipes would make changes. See logs for more details.");
-            }
+        if (!results.isNotEmpty()) {
+            return;
+        }
+        
+        // Report all changes that would be made
+        reportGeneratedFiles(results);
+        reportDeletedFiles(results);
+        reportMovedFiles(results);
+        reportRefactoredFiles(results);
+        
+        // Write patch file
+        writePatchFile(results);
+        
+        if (failOnDryRunResults) {
+            throw new RewriteExecutionException("Applying recipes would make changes. See logs for more details.");
         }
     }
 
