@@ -30,11 +30,42 @@ and just use `rewrite` directly, i.e.:
 rewrite --recipes org.openrewrite.java.format.AutoFormat --dry-run
 ----
 
+=== Using JBang Catalog
+
+This repository includes a `jbang-catalog.json` that defines several useful aliases:
+
+[source,sh]
+----
+# Add the catalog
+jbang catalog add --name rewrite https://github.com/openrewrite/rewrite-jbang
+
+# List available aliases
+jbang alias list rewrite
+
+# Use recipe-specific aliases
+jbang format        # Run AutoFormat recipe
+jbang cleanup       # Run Cleanup recipe
+jbang unused-imports # Remove unused imports
+jbang sort-dependencies # Sort Maven dependencies
+----
+
+You can also use the script directly via the catalog without adding it:
+
+[source,sh]
+----
+jbang format@maxandersen/rewrite-jbang
+----
+
 Usage tips: 
 
 * Use `--dry-run` to see proposed changes and generate a patch file (default: `./rewrite/rewrite.patch`).
 * When running without `--dry-run`, changes will be applied directly to your files.
 * Always review changes before committing them to version control.
+
+== Requirements
+
+* Java 21 or higher is required to run this script.
+* JBang will automatically download the required Java version if necessary.
 
 == Key Options
 
@@ -129,4 +160,4 @@ For type resolution problems:
 === Java Version Compatibility
 
 * Ensure your JDK version is compatible with the project you're modifying
-* The JBang script is tested with Java 11+
+* The JBang script requires Java 21 or later

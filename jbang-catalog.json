@@ -3,6 +3,10 @@
   "aliases": {
     "rewrite": {
       "script-ref": "rewrite.java"
+    },
+    "format": {
+      "script-ref": "rewrite.java",
+      "arguments": ["--recipes", "org.openrewrite.java.format.AutoFormat"]
     }
   },
   "templates": {}

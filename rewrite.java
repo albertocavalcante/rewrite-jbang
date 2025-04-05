@@ -1,4 +1,5 @@
 ///usr/bin/env jbang "$0" "$@" ; exit $?
+//JAVA 21+
 //COMPILE_OPTIONS -Xlint:deprecation -Xlint:unchecked -proc:none
 
 //DEPS info.picocli:picocli:4.7.6
@@ -242,8 +243,8 @@ class Rewrite implements Callable<Integer> {
         // Explicitly look for pom.xml in the base directory
         Path pomPath = baseDir().resolve("pom.xml");
         if (!Files.exists(pomPath)) {
-            // Optional: Log if no pom.xml is found at the expected location
-            // getLog().info("No pom.xml found in base directory: " + baseDir());
+            // Log if no pom.xml is found at the expected location
+            logger.info("No pom.xml found in base directory: {}", baseDir());
             return null; // Return null if pom.xml doesn't exist
         }
         List<Path> pomToParse = Collections.singletonList(pomPath);
@@ -382,15 +383,8 @@ class Rewrite implements Callable<Integer> {
         }
     }
 
-    Rewrite.ResultsContainer listResults() {
-        var env = environment();
-
-        if (activeRecipes.isEmpty()) {
-            logger.warn(
-                    "No recipes specified. Activate a recipe on the command line with '--recipes com.fully.qualified.RecipeClassName'");
-            return new ResultsContainer(baseDir(), emptyList());
-        }
-
+    // Extract method to handle recipe activation
+    private org.openrewrite.Recipe activateRecipesWithFallback(Environment env) {
         var recipe = env.activateRecipes(activeRecipes);
         if (recipe.getRecipeList().isEmpty() || recipe.getName().equals("org.openrewrite.Recipe$Noop")) {
             // Fallback: try to find matching recipes from the descriptors
@@ -403,16 +397,57 @@ class Rewrite implements Callable<Integer> {
                         .map(rd -> rd.getName())
                         .collect(java.util.stream.Collectors.toSet());
                 logger.info("Activating recipes (fallback): {}", names);
-                recipe = env.activateRecipes(names);
-            } else {
-                logger.warn("No matching recipes found for specified active recipes: {}", activeRecipes);
-                return new ResultsContainer(baseDir(), emptyList());
+                return env.activateRecipes(names);
             }
+            logger.warn("No matching recipes found for specified active recipes: {}", activeRecipes);
+            return recipe;
+        }
+        return recipe;
+    }
+    
+    // Extract method to parse Java sources
+    private List<SourceFile> parseJavaSources(List<Path> javaSources, List<Path> classpath, List<NamedStyles> styles, ExecutionContext ctx) {
+        List<SourceFile> sourceFiles = new ArrayList<>();
+        sourceFiles.addAll(
+                JavaParser.fromJavaVersion()
+                        .styles(styles)
+                        .classpath(classpath)
+                        .logCompilationWarningsAndErrors(true).build().parse(javaSources, baseDir(), ctx)
+                        .toList());
+        logger.info("{} java files parsed.", sourceFiles.size());
+        return sourceFiles;
+    }
+    
+    // Extract method to parse resource files of a specific type
+    private void parseResourcesOfType(List<SourceFile> sourceFiles, Set<Path> resources, String type, 
+                               java.util.function.Predicate<Path> filter, 
+                               java.util.function.Function<List<Path>, Stream<SourceFile>> parser,
+                               ExecutionContext ctx) {
+        logger.info("Parsing {} files...", type);
+        List<Path> typePaths = resources.stream().filter(filter).toList();
+        if (!typePaths.isEmpty()) {
+            sourceFiles.addAll(parser.apply(typePaths).toList());
+            logger.info("Parsed {} {} files.", typePaths.size(), type);
+        } else {
+            logger.info("No {} files found to parse.", type);
+        }
+    }
+
+    Rewrite.ResultsContainer listResults() {
+        var env = environment();
+
+        if (activeRecipes.isEmpty()) {
+            logger.warn(
+                    "No recipes specified. Activate a recipe on the command line with '--recipes com.fully.qualified.RecipeClassName'");
+            return new ResultsContainer(baseDir(), emptyList());
         }
 
-        List<NamedStyles> styles;
-        styles = env.activateStyles(activeStyles);
+        var recipe = activateRecipesWithFallback(env);
+        if (recipe.getRecipeList().isEmpty() && activeRecipes.isEmpty()) {
+            return new ResultsContainer(baseDir(), emptyList());
+        }
 
+        List<NamedStyles> styles = env.activateStyles(activeStyles);
         logger.info("");
 
         ExecutionContext ctx = executionContext();
@@ -452,19 +487,9 @@ class Rewrite implements Callable<Integer> {
                     .toList();
         } else {
             logger.info("No explicit classpath provided. Type resolution for Java recipes might be limited.");
-            // Consider adding a warning or a way to auto-detect later if needed
         }
 
-        List<SourceFile> sourceFiles = new ArrayList<>();
-
-        // Parse Java - Collect Stream<SourceFile> to List
-        sourceFiles.addAll(
-                JavaParser.fromJavaVersion()
-                        .styles(styles)
-                        .classpath(classpath)
-                        .logCompilationWarningsAndErrors(true).build().parse(javaSources, baseDir(), ctx)
-                        .toList());
-        logger.info("{} java files parsed.", sourceFiles.size());
+        List<SourceFile> sourceFiles = parseJavaSources(javaSources, classpath, styles, ctx);
 
         Set<Path> resources = new HashSet<>();
         if (discoverResources) {
@@ -480,60 +505,29 @@ class Rewrite implements Callable<Integer> {
 
         // Always attempt to parse supported types if resources were found/discovered
         if (!resources.isEmpty()) {
-            logger.info("Parsing YAML files...");
-            List<Path> yamlPaths = resources.stream()
-                    .filter(it -> it.getFileName().toString().endsWith(".yml")
-                            || it.getFileName().toString().endsWith(".yaml"))
-                    .toList();
-            if (!yamlPaths.isEmpty()) {
-                // Collect Stream<SourceFile> to List
-                sourceFiles.addAll(
-                        new YamlParser().parse(yamlPaths, baseDir(), ctx)
-                                .toList());
-                logger.info("Parsed {} YAML files.", yamlPaths.size());
-            } else {
-                logger.info("No YAML files found to parse.");
-            }
-
-            logger.info("Parsing properties files...");
-            List<Path> propertiesPaths = resources.stream()
-                    .filter(it -> it.getFileName().toString().endsWith(".properties")).toList();
-            if (!propertiesPaths.isEmpty()) {
-                // Collect Stream<SourceFile> to List
-                sourceFiles.addAll(
-                        new PropertiesParser().parse(propertiesPaths, baseDir(), ctx)
-                                .toList());
-                logger.info("Parsed {} properties files.", propertiesPaths.size());
-            } else {
-                logger.info("No properties files found to parse.");
-            }
-
-            logger.info("Parsing XML files...");
-            List<Path> xmlPaths = resources.stream().filter(it -> it.getFileName().toString().endsWith(".xml"))
-                    .toList();
-            if (!xmlPaths.isEmpty()) {
-                // Collect Stream<SourceFile> to List
-                sourceFiles.addAll(
-                        new XmlParser().parse(xmlPaths, baseDir(), ctx)
-                                .toList());
-                logger.info("Parsed {} XML files.", xmlPaths.size());
-            } else {
-                logger.info("No XML files found to parse.");
-            }
-
-            logger.info("Parsing TOML files...");
-            List<Path> tomlPaths = resources.stream().filter(it -> it.getFileName().toString().endsWith(".toml"))
-                    .toList();
-            if (!tomlPaths.isEmpty()) {
-                // Collect Stream<SourceFile> to List
-                sourceFiles.addAll(
-                        new TomlParser().parse(tomlPaths, baseDir(), ctx)
-                                .toList());
-                logger.info("Parsed {} TOML files.", tomlPaths.size());
-            } else {
-                logger.info("No TOML files found to parse.");
-            }
-
+            // Parse YAML
+            parseResourcesOfType(sourceFiles, resources, "YAML", 
+                path -> path.getFileName().toString().endsWith(".yml") || path.getFileName().toString().endsWith(".yaml"),
+                paths -> new YamlParser().parse(paths, baseDir(), ctx),
+                ctx);
+            
+            // Parse Properties
+            parseResourcesOfType(sourceFiles, resources, "properties", 
+                path -> path.getFileName().toString().endsWith(".properties"),
+                paths -> new PropertiesParser().parse(paths, baseDir(), ctx),
+                ctx);
+            
+            // Parse XML
+            parseResourcesOfType(sourceFiles, resources, "XML", 
+                path -> path.getFileName().toString().endsWith(".xml"),
+                paths -> new XmlParser().parse(paths, baseDir(), ctx),
+                ctx);
+            
+            // Parse TOML
+            parseResourcesOfType(sourceFiles, resources, "TOML", 
+                path -> path.getFileName().toString().endsWith(".toml"),
+                paths -> new TomlParser().parse(paths, baseDir(), ctx),
+                ctx);
         } else {
             logger.info(
                     "Skipping parsing of YAML, Properties, XML, and TOML files as no resources were discovered or discovery was disabled.");
@@ -542,16 +536,15 @@ class Rewrite implements Callable<Integer> {
         // Always attempt to parse Maven POM (typically pom.xml at baseDir)
         logger.info("Parsing Maven POMs (if found)...");
         try {
-            Xml.Document pomAst = parseMaven(ctx); // parseMaven now returns null if POM not found/parsed
+            Xml.Document pomAst = parseMaven(ctx);
             if (pomAst != null) {
                 sourceFiles.add(pomAst);
                 logger.info("Parsed Maven POM: {}", pomAst.getSourcePath());
             } else {
-                logger.info("No Maven POM found or parsed in {}", baseDir()); // Updated log
+                logger.info("No Maven POM found or parsed in {}", baseDir());
             }
         } catch (Exception e) {
-            // Catch potential exceptions during POM parsing if it fails
-            logger.warn("Failed to parse Maven POM. Skipping. Error: {}", e.getMessage(), e); // Log exception details
+            logger.warn("Failed to parse Maven POM. Skipping. Error: {}", e.getMessage(), e);
         }
 
         logger.info("Running recipe(s) on {} detected source files...", sourceFiles.size());
@@ -567,8 +560,7 @@ class Rewrite implements Callable<Integer> {
                         return !source.getBefore().getMarkers().findFirst(Generated.class).isPresent();
                     }
                     return true;
-                })
-                .toList();
+                }).toList();
 
         return new ResultsContainer(baseDir(), filteredResults);
     }
