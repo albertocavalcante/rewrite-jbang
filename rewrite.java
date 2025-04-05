@@ -527,136 +527,38 @@ class Rewrite implements Callable<Integer> {
         }
     }
 
+    // Main method to discover and apply recipes to source files
     Rewrite.ResultsContainer listResults() {
+        // Setup environment and check for recipes
         var env = environment();
-
         if (activeRecipes.isEmpty()) {
-            logger.warn(
-                    "No recipes specified. Activate a recipe on the command line with '--recipes com.fully.qualified.RecipeClassName'");
+            logger.warn("No recipes specified. Activate a recipe on the command line with '--recipes com.fully.qualified.RecipeClassName'");
             return new ResultsContainer(baseDir(), emptyList());
         }
 
+        // Activate recipes and styles
         var recipe = activateRecipesWithFallback(env);
         if (recipe.getRecipeList().isEmpty() && activeRecipes.isEmpty()) {
             return new ResultsContainer(baseDir(), emptyList());
         }
 
         List<NamedStyles> styles = env.activateStyles(activeStyles);
-        logger.info("");
-
         ExecutionContext ctx = executionContext();
 
-        logger.info("Validating active recipes...");
-        Validated validated = recipe.validate(ctx);
-        @SuppressWarnings("unchecked")
-        List<Validated.Invalid> failedValidations = validated.failures();
+        // Validate recipes
+        validateRecipes(recipe, ctx);
 
-        if (!failedValidations.isEmpty()) {
-            failedValidations.forEach(failedValidation -> logger.error(
-                    "Recipe validation error in " + failedValidation.getProperty() + ": "
-                            + failedValidation.getMessage(),
-                    failedValidation.getException()));
-            if (failOnInvalidActiveRecipes) {
-                throw new IllegalStateException(
-                        "Recipe validation errors detected as part of one or more activeRecipe(s). Please check error logs.");
-            } else {
-                logger.error(
-                        "Recipe validation errors detected as part of one or more activeRecipe(s). Execution will continue regardless.");
-            }
-        }
+        // Parse Java source files
+        List<SourceFile> sourceFiles = parseAllJavaSourceFiles(styles, ctx);
 
-        List<Path> javaSources = new ArrayList<>();
-        javaSourcePaths.forEach(path -> javaSources.addAll(listJavaSources(path)));
+        // Discover and parse resource files
+        parseResourceFiles(sourceFiles, ctx);
 
-        if (logger.isInfoEnabled()) {
-            logger.info("Parsing Java files found in: {}", javaSourcePaths.stream().collect(joining(", ")));
-        }
+        // Parse Maven POM if available
+        parseMavenPom(sourceFiles, ctx);
 
-        // Prepare classpath
-        List<Path> classpath = emptyList();
-        if (classpathElements != null && !classpathElements.isEmpty()) {
-            logger.info("Using provided classpath elements: {}", classpathElements.size());
-            classpath = classpathElements.stream()
-                    .map(Paths::get)
-                    .toList();
-        } else {
-            logger.info("No explicit classpath provided. Type resolution for Java recipes might be limited.");
-        }
-
-        List<SourceFile> sourceFiles = parseJavaSources(javaSources, classpath, styles, ctx);
-
-        Set<Path> resources = new HashSet<>();
-        if (discoverResources) {
-            if (logger.isInfoEnabled()) {
-                logger.info("Discovering resource files (yml, yaml, properties, xml, toml) in: {}",
-                        javaSourcePaths.stream().collect(joining(", ")));
-            }
-            resources = listResourceFiles(javaSourcePaths);
-            logger.info("Found {} resource files.", resources.size());
-        } else {
-            logger.info("Skipping resource file discovery (--discover-resources=false).");
-        }
-
-        // Always attempt to parse supported types if resources were found/discovered
-        if (!resources.isEmpty()) {
-            // Parse YAML
-            parseResourcesOfType(sourceFiles, resources, "YAML", 
-                path -> path.getFileName().toString().endsWith(".yml") || path.getFileName().toString().endsWith(".yaml"),
-                paths -> new YamlParser().parse(paths, baseDir(), ctx),
-                ctx);
-            
-            // Parse Properties
-            parseResourcesOfType(sourceFiles, resources, "properties", 
-                path -> path.getFileName().toString().endsWith(".properties"),
-                paths -> new PropertiesParser().parse(paths, baseDir(), ctx),
-                ctx);
-            
-            // Parse XML
-            parseResourcesOfType(sourceFiles, resources, "XML", 
-                path -> path.getFileName().toString().endsWith(".xml"),
-                paths -> new XmlParser().parse(paths, baseDir(), ctx),
-                ctx);
-            
-            // Parse TOML
-            parseResourcesOfType(sourceFiles, resources, "TOML", 
-                path -> path.getFileName().toString().endsWith(".toml"),
-                paths -> new TomlParser().parse(paths, baseDir(), ctx),
-                ctx);
-        } else {
-            logger.info(
-                    "Skipping parsing of YAML, Properties, XML, and TOML files as no resources were discovered or discovery was disabled.");
-        }
-
-        // Always attempt to parse Maven POM (typically pom.xml at baseDir)
-        logger.info("Parsing Maven POMs (if found)...");
-        try {
-            Xml.Document pomAst = parseMaven(ctx);
-            if (pomAst != null) {
-                sourceFiles.add(pomAst);
-                logger.info("Parsed Maven POM: {}", pomAst.getSourcePath());
-            } else {
-                logger.info("No Maven POM found or parsed in {}", baseDir());
-            }
-        } catch (Exception e) {
-            logger.warn("Failed to parse Maven POM. Skipping. Error: {}", e.getMessage(), e);
-        }
-
-        logger.info("Running recipe(s) on {} detected source files...", sourceFiles.size());
-        // Use InMemoryLargeSourceSet and RecipeRun based on plugin v5.39.2
-        LargeSourceSet largeSourceSet = new InMemoryLargeSourceSet(sourceFiles);
-        RecipeRun recipeRun = recipe.run(largeSourceSet, ctx);
-        List<Result> results = recipeRun.getChangeset().getAllResults();
-
-        // Filter results after running the recipe
-        List<Result> filteredResults = results.stream()
-                .filter(source -> {
-                    if (source.getBefore() != null) {
-                        return !source.getBefore().getMarkers().findFirst(Generated.class).isPresent();
-                    }
-                    return true;
-                }).toList();
-
-        return new ResultsContainer(baseDir(), filteredResults);
+        // Execute recipes and return results
+        return executeRecipesAndGetResults(recipe, sourceFiles, ctx);
     }
 
     // log method to mimic plugin behavior
@@ -792,24 +694,24 @@ class Rewrite implements Callable<Integer> {
         }
     }
     
+    // Extract method to create directory safely
+    private void createDirectorySafely(File directory) {
+        if (!directory.exists() && !directory.mkdirs()) {
+            logger.warn("Failed to create directory: {}", directory);
+        }
+    }
+    
     // Extract method to write patch file
     private void writePatchFile(ResultsContainer results) {
-        // Check return value of mkdirs()
-        if (!reportOutputDirectory.mkdirs() && !reportOutputDirectory.exists()) {
-            logger.warn("Failed to create directory: {}", reportOutputDirectory);
-        }
+        // Create report directory if needed
+        createDirectorySafely(reportOutputDirectory);
 
         Path patchFile = reportOutputDirectory.toPath().resolve("rewrite.patch");
         try (BufferedWriter writer = Files.newBufferedWriter(patchFile)) {
-            Stream.concat(Stream.concat(results.generated.stream(), results.deleted.stream()),
-                    Stream.concat(results.moved.stream(), results.refactoredInPlace.stream())).map(Result::diff)
-                    .forEach(diff -> {
-                        try {
-                            writer.write(diff + "\n");
-                        } catch (IOException e) {
-                            throw new RewriteExecutionException("Failed to write diff", e);
-                        }
-                    });
+            // Combine all result streams and write diffs
+            getAllResultsStream(results)
+                .map(Result::diff)
+                .forEach(diff -> writeLineToPatchFile(writer, diff));
         } catch (Exception e) {
             throw new RewriteExecutionException("Unable to generate rewrite result file", e);
         }
@@ -817,7 +719,186 @@ class Rewrite implements Callable<Integer> {
         logger.warn("Report available:");
         logger.warn("    {}", patchFile.normalize());
     }
+    
+    // Helper method to get combined stream of all results
+    private Stream<Result> getAllResultsStream(ResultsContainer results) {
+        return Stream.concat(
+                Stream.concat(results.generated.stream(), results.deleted.stream()),
+                Stream.concat(results.moved.stream(), results.refactoredInPlace.stream())
+        );
+    }
+    
+    // Helper method to write a line to the patch file with exception handling
+    private void writeLineToPatchFile(BufferedWriter writer, String line) {
+        try {
+            writer.write(line + "\n");
+        } catch (IOException e) {
+            throw new RewriteExecutionException("Failed to write diff", e);
+        }
+    }
+    
+    // Utility method to extract file content from SourceFile
+    private String extractFileContent(SourceFile sourceFile) {
+        Charset charset = sourceFile.getCharset();
+        return new String(sourceFile.printAll().getBytes(charset), charset);
+    }
 
+    // Validate recipes with potential failure handling
+    private void validateRecipes(org.openrewrite.Recipe recipe, ExecutionContext ctx) {
+        logger.info("Validating active recipes...");
+        @SuppressWarnings("rawtypes")
+        Validated validated = recipe.validate(ctx);
+        @SuppressWarnings({"rawtypes", "unchecked"})
+        List<Validated.Invalid> failedValidations = validated.failures();
+
+        if (!failedValidations.isEmpty()) {
+            failedValidations.forEach(failedValidation -> logger.error(
+                    "Recipe validation error in " + failedValidation.getProperty() + ": "
+                            + failedValidation.getMessage(),
+                    failedValidation.getException()));
+                    
+            if (failOnInvalidActiveRecipes) {
+                throw new IllegalStateException(
+                        "Recipe validation errors detected as part of one or more activeRecipe(s). Please check error logs.");
+            } else {
+                logger.error(
+                        "Recipe validation errors detected as part of one or more activeRecipe(s). Execution will continue regardless.");
+            }
+        }
+    }
+    
+    // Parse all Java source files from configured paths
+    private List<SourceFile> parseAllJavaSourceFiles(List<NamedStyles> styles, ExecutionContext ctx) {
+        // Collect all Java sources from configured paths
+        List<Path> javaSources = new ArrayList<>();
+        javaSourcePaths.forEach(path -> javaSources.addAll(listJavaSources(path)));
+
+        if (logger.isInfoEnabled()) {
+            logger.info("Parsing Java files found in: {}", javaSourcePaths.stream().collect(joining(", ")));
+        }
+
+        // Prepare classpath for type resolution
+        List<Path> classpath = prepareClasspath();
+        
+        // Parse Java sources with the prepared classpath
+        return parseJavaSources(javaSources, classpath, styles, ctx);
+    }
+    
+    // Prepare classpath for Java parsing
+    private List<Path> prepareClasspath() {
+        if (classpathElements != null && !classpathElements.isEmpty()) {
+            logger.info("Using provided classpath elements: {}", classpathElements.size());
+            return classpathElements.stream()
+                    .map(Paths::get)
+                    .toList();
+        } else {
+            logger.info("No explicit classpath provided. Type resolution for Java recipes might be limited.");
+            return emptyList();
+        }
+    }
+    
+    // Parse resource files (YAML, Properties, XML, TOML)
+    private void parseResourceFiles(List<SourceFile> sourceFiles, ExecutionContext ctx) {
+        Set<Path> resources = discoverResourceFiles();
+        
+        // Parse all resource types if any were found
+        if (!resources.isEmpty()) {
+            // Parse YAML
+            parseResourcesOfType(sourceFiles, resources, "YAML", 
+                path -> path.getFileName().toString().endsWith(".yml") || path.getFileName().toString().endsWith(".yaml"),
+                paths -> new YamlParser().parse(paths, baseDir(), ctx),
+                ctx);
+            
+            // Parse Properties
+            parseResourcesOfType(sourceFiles, resources, "properties", 
+                path -> path.getFileName().toString().endsWith(".properties"),
+                paths -> new PropertiesParser().parse(paths, baseDir(), ctx),
+                ctx);
+            
+            // Parse XML
+            parseResourcesOfType(sourceFiles, resources, "XML", 
+                path -> path.getFileName().toString().endsWith(".xml"),
+                paths -> new XmlParser().parse(paths, baseDir(), ctx),
+                ctx);
+            
+            // Parse TOML
+            parseResourcesOfType(sourceFiles, resources, "TOML", 
+                path -> path.getFileName().toString().endsWith(".toml"),
+                paths -> new TomlParser().parse(paths, baseDir(), ctx),
+                ctx);
+        } else {
+            logger.info("Skipping parsing of resource files as none were discovered or discovery was disabled.");
+        }
+    }
+    
+    // Discover resource files from source paths
+    private Set<Path> discoverResourceFiles() {
+        if (!discoverResources) {
+            logger.info("Skipping resource file discovery (--discover-resources=false).");
+            return new HashSet<>();
+        }
+        
+        if (logger.isInfoEnabled()) {
+            logger.info("Discovering resource files (yml, yaml, properties, xml, toml) in: {}",
+                    javaSourcePaths.stream().collect(joining(", ")));
+        }
+        
+        Set<Path> resources = listResourceFiles(javaSourcePaths);
+        logger.info("Found {} resource files.", resources.size());
+        return resources;
+    }
+    
+    // Parse Maven POM file if available
+    private void parseMavenPom(List<SourceFile> sourceFiles, ExecutionContext ctx) {
+        logger.info("Parsing Maven POMs (if found)...");
+        try {
+            Xml.Document pomAst = parseMaven(ctx);
+            if (pomAst != null) {
+                sourceFiles.add(pomAst);
+                logger.info("Parsed Maven POM: {}", pomAst.getSourcePath());
+            } else {
+                logger.info("No Maven POM found or parsed in {}", baseDir());
+            }
+        } catch (Exception e) {
+            logger.warn("Failed to parse Maven POM. Skipping. Error: {}", e.getMessage(), e);
+        }
+    }
+    
+    // Execute recipes and filter results
+    private ResultsContainer executeRecipesAndGetResults(org.openrewrite.Recipe recipe, 
+                                                       List<SourceFile> sourceFiles, 
+                                                       ExecutionContext ctx) {
+        logger.info("Running recipe(s) on {} detected source files...", sourceFiles.size());
+        
+        // Create source set and run recipe
+        LargeSourceSet largeSourceSet = new InMemoryLargeSourceSet(sourceFiles);
+        RecipeRun recipeRun = recipe.run(largeSourceSet, ctx);
+        List<Result> results = recipeRun.getChangeset().getAllResults();
+
+        // Filter generated files from results
+        List<Result> filteredResults = results.stream()
+                .filter(source -> {
+                    if (source.getBefore() != null) {
+                        return !source.getBefore().getMarkers().findFirst(Generated.class).isPresent();
+                    }
+                    return true;
+                }).toList();
+
+        return new ResultsContainer(baseDir(), filteredResults);
+    }
+    
+    // Process all types of results in a single method
+    private void reportAllChanges(ResultsContainer results) {
+        if (!results.isNotEmpty()) {
+            return;
+        }
+        
+        reportGeneratedFiles(results);
+        reportDeletedFiles(results);
+        reportMovedFiles(results);
+        reportRefactoredFiles(results);
+    }
+    
     void performDryRun() {
         ResultsContainer results = listResults();
 
@@ -825,11 +906,9 @@ class Rewrite implements Callable<Integer> {
             return;
         }
         
+        
         // Report all changes that would be made
-        reportGeneratedFiles(results);
-        reportDeletedFiles(results);
-        reportMovedFiles(results);
-        reportRefactoredFiles(results);
+        reportAllChanges(results);
         
         // Write patch file
         writePatchFile(results);
@@ -848,10 +927,20 @@ class Rewrite implements Callable<Integer> {
                 logRecipesThatMadeChanges(result);
                 
                 Path targetPath = results.getProjectRoot().resolve(result.getAfter().getSourcePath());
-                Charset charset = result.getAfter().getCharset();
-                String content = new String(result.getAfter().printAll().getBytes(charset), charset);
-                writeFileContent(targetPath, charset, content);
+                writeFileContent(targetPath, result.getAfter().getCharset(), 
+                        extractFileContent(result.getAfter()));
             }
+        }
+    }
+    
+    // Unified method to delete a file with error handling
+    private void deleteFile(Path projectRoot, SourceFile sourceFile) throws IOException {
+        Path originalLocation = projectRoot.resolve(sourceFile.getSourcePath()).normalize();
+        try {
+            Files.delete(originalLocation);
+        } catch (IOException e) {
+            throw new IOException(
+                    String.format("Unable to delete file %s: %s", originalLocation.toAbsolutePath(), e.getMessage()), e);
         }
     }
     
@@ -862,17 +951,20 @@ class Rewrite implements Callable<Integer> {
                 logger.warn("Deleted file {} by:",
                         result.getBefore().getSourcePath().normalize());
                 logRecipesThatMadeChanges(result);
-                
-                Path originalLocation = results.getProjectRoot().resolve(result.getBefore().getSourcePath())
-                        .normalize();
-                try {
-                    Files.delete(originalLocation);
-                } catch (IOException e) {
-                    throw new IOException(
-                            String.format("Unable to delete file %s: %s", originalLocation.toAbsolutePath(), e.getMessage()), e);
-                }
+                deleteFile(results.getProjectRoot(), result.getBefore());
             }
         }
+    }
+    
+    // Unified method to create a file from a SourceFile
+    private void createFile(Path projectRoot, SourceFile sourceFile) throws IOException {
+        // Ensure directories exist
+        Path targetLocation = projectRoot.resolve(sourceFile.getSourcePath());
+        createParentDirectories(targetLocation);
+        
+        // Write file content
+        writeFileContent(targetLocation, sourceFile.getCharset(), 
+                extractFileContent(sourceFile));
     }
     
     // Process moved files
@@ -882,38 +974,14 @@ class Rewrite implements Callable<Integer> {
                 continue; // Skip invalid results
             }
             
-            logMovedFile(result);
-            deleteOriginalFile(results.getProjectRoot(), result.getBefore());
-            createMovedFile(results.getProjectRoot(), result.getAfter());
+            logger.warn("File has been moved from {} to {} by:",
+                    result.getBefore().getSourcePath().normalize(),
+                    result.getAfter().getSourcePath().normalize());
+            logRecipesThatMadeChanges(result);
+            
+            deleteFile(results.getProjectRoot(), result.getBefore());
+            createFile(results.getProjectRoot(), result.getAfter());
         }
-    }
-    
-    private void logMovedFile(Result result) {
-        logger.warn("File has been moved from {} to {} by:",
-                result.getBefore().getSourcePath().normalize(),
-                result.getAfter().getSourcePath().normalize());
-        logRecipesThatMadeChanges(result);
-    }
-    
-    private void deleteOriginalFile(Path projectRoot, SourceFile sourceFile) throws IOException {
-        Path originalLocation = projectRoot.resolve(sourceFile.getSourcePath());
-        try {
-            Files.delete(originalLocation);
-        } catch (IOException e) {
-            throw new IOException(
-                    String.format("Unable to delete file %s: %s", originalLocation.toAbsolutePath(), e.getMessage()), e);
-        }
-    }
-    
-    private void createMovedFile(Path projectRoot, SourceFile sourceFile) throws IOException {
-        // Ensure directories exist
-        Path targetLocation = projectRoot.resolve(sourceFile.getSourcePath());
-        createParentDirectories(targetLocation);
-        
-        // Write file content
-        Charset charset = sourceFile.getCharset();
-        String content = new String(sourceFile.printAll().getBytes(charset), charset);
-        writeFileContent(targetLocation, charset, content);
     }
     
     private void createParentDirectories(Path filePath) {
@@ -926,45 +994,46 @@ class Rewrite implements Callable<Integer> {
     // Process files refactored in place
     private void processRefactoredFiles(ResultsContainer results) throws IOException {
         for (Result result : results.refactoredInPlace) {
-            if (result.getBefore() != null) {
+            if (result.getBefore() != null && result.getAfter() != null) {
                 logger.warn("Changes have been made to {} by:",
                         result.getBefore().getSourcePath().normalize());
                 logRecipesThatMadeChanges(result);
                 
-                if (result.getAfter() != null) {
-                    Path targetPath = results.getProjectRoot().resolve(result.getBefore().getSourcePath());
-                    Charset charset = result.getAfter().getCharset();
-                    String content = new String(result.getAfter().printAll().getBytes(charset), charset);
-                    writeFileContent(targetPath, charset, content);
-                }
+                Path targetPath = results.getProjectRoot().resolve(result.getBefore().getSourcePath());
+                writeFileContent(targetPath, result.getAfter().getCharset(), 
+                        extractFileContent(result.getAfter()));
             }
         }
     }
 
-    void realrun() {
+    // Apply all file changes from results
+    private void applyAllChanges(ResultsContainer results) throws IOException {
+        if (!results.isNotEmpty()) {
+            return;
+        }
+        
+        logger.warn("Please review and commit the results.");
+        processGeneratedFiles(results);
+        processDeletedFiles(results);
+        processMovedFiles(results);
+        processRefactoredFiles(results);
+    }
+    
+    void performRun() {
         ResultsContainer results = listResults();
-
-        if (results.isNotEmpty()) {
-            logger.warn("Please review and commit the results.");
-
-            try {
-                processGeneratedFiles(results);
-                processDeletedFiles(results);
-                processMovedFiles(results);
-                processRefactoredFiles(results);
-            } catch (IOException e) {
-                throw new RewriteExecutionException("Unable to rewrite source files", e);
-            }
+        try {
+            applyAllChanges(results);
+        } catch (IOException e) {
+            throw new RewriteExecutionException("Unable to rewrite source files", e);
         }
     }
 
     @Override
-    public Integer call() { // your business logic goes here...
-
+    public Integer call() {
         if (dryRun) {
             performDryRun();
         } else {
-            realrun();
+            performRun();
         }
 
         return 0;
