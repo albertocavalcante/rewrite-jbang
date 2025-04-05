@@ -279,37 +279,53 @@ class Rewrite implements Callable<Integer> {
     }
 
     public Xml.Document parseMaven(ExecutionContext ctx) {
-        // Explicitly look for pom.xml in the base directory
+        // Check if pom.xml exists
         Path pomPath = baseDir().resolve("pom.xml");
         if (!Files.exists(pomPath)) {
-            // Log if no pom.xml is found at the expected location
             logger.info("No pom.xml found in base directory: {}", baseDir());
-            return null; // Return null if pom.xml doesn't exist
+            return null;
         }
+        
         List<Path> pomToParse = Collections.singletonList(pomPath);
-
-        MavenParser.Builder mavenParserBuilder = MavenParser.builder();
-
+        MavenParser.Builder parserBuilder = createMavenParserBuilder(ctx);
+        List<SourceFile> parsedPoms = parseWithBuilder(parserBuilder, pomToParse, ctx);
+        
+        return extractXmlDocument(parsedPoms);
+    }
+    
+    private MavenParser.Builder createMavenParserBuilder(ExecutionContext ctx) {
+        MavenParser.Builder builder = MavenParser.builder();
+        
+        // Configure maven settings
         MavenSettings settings = buildSettings();
         MavenExecutionContextView mavenExecutionContext = MavenExecutionContextView.view(ctx);
         mavenExecutionContext.setMavenSettings(settings);
-
-        // Check for active profiles and add them to the parser if available
-        if (settings.getActiveProfiles() != null) {
-            List<String> activeProfiles = settings.getActiveProfiles().getActiveProfiles();
-            if (activeProfiles != null && !activeProfiles.isEmpty()) {
-                mavenParserBuilder.activeProfiles(activeProfiles.toArray(new String[0]));
-            }
+        
+        // Add active profiles if available
+        addActiveProfilesToBuilder(builder, settings);
+        
+        return builder;
+    }
+    
+    private void addActiveProfilesToBuilder(MavenParser.Builder builder, MavenSettings settings) {
+        if (settings.getActiveProfiles() == null) {
+            return;
         }
-
-        // Parse the explicitly found pom.xml - Correct variable type
-        List<SourceFile> parsedPoms = mavenParserBuilder
-                .build()
-                .parse(pomToParse, baseDir(), ctx)
+        
+        List<String> activeProfiles = settings.getActiveProfiles().getActiveProfiles();
+        if (activeProfiles != null && !activeProfiles.isEmpty()) {
+            builder.activeProfiles(activeProfiles.toArray(new String[0]));
+        }
+    }
+    
+    private List<SourceFile> parseWithBuilder(MavenParser.Builder builder, List<Path> paths, ExecutionContext ctx) {
+        return builder.build()
+                .parse(paths, baseDir(), ctx)
                 .toList();
-
-        // Find the Xml.Document within the SourceFile stream/list
-        return parsedPoms.stream()
+    }
+    
+    private Xml.Document extractXmlDocument(List<SourceFile> parsedFiles) {
+        return parsedFiles.stream()
                 .filter(Xml.Document.class::isInstance)
                 .map(Xml.Document.class::cast)
                 .findFirst()
