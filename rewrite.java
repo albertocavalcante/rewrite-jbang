@@ -880,38 +880,48 @@ class Rewrite implements Callable<Integer> {
     // Process moved files
     private void processMovedFiles(ResultsContainer results) throws IOException {
         for (Result result : results.moved) {
-            if (result.getAfter() != null && result.getBefore() != null) {
-                logger.warn("File has been moved from {} to {} by:",
-                        result.getBefore().getSourcePath().normalize(),
-                        result.getAfter().getSourcePath().normalize());
-                logRecipesThatMadeChanges(result);
-                
-                // Delete original file
-                if (result.getBefore() != null) {
-                    Path originalLocation = results.getProjectRoot().resolve(result.getBefore().getSourcePath());
-                    try {
-                        Files.delete(originalLocation);
-                    } catch (IOException e) {
-                        throw new IOException(
-                                String.format("Unable to delete file %s: %s", originalLocation.toAbsolutePath(), e.getMessage()), e);
-                    }
-                }
-                
-                // Create new file
-                if (result.getAfter() != null) {
-                    // Ensure directories exist
-                    Path afterLocation = results.getProjectRoot().resolve(result.getAfter().getSourcePath());
-                    File parentDir = afterLocation.toFile().getParentFile();
-
-                    if (!parentDir.exists() && !parentDir.mkdirs()) {
-                        logger.warn("Failed to create directory: {}", parentDir);
-                    }
-
-                    Charset charset = result.getAfter().getCharset();
-                    String content = new String(result.getAfter().printAll().getBytes(charset), charset);
-                    writeFileContent(afterLocation, charset, content);
-                }
+            if (result.getAfter() == null || result.getBefore() == null) {
+                continue; // Skip invalid results
             }
+            
+            logMovedFile(result);
+            deleteOriginalFile(results.getProjectRoot(), result.getBefore());
+            createMovedFile(results.getProjectRoot(), result.getAfter());
+        }
+    }
+    
+    private void logMovedFile(Result result) {
+        logger.warn("File has been moved from {} to {} by:",
+                result.getBefore().getSourcePath().normalize(),
+                result.getAfter().getSourcePath().normalize());
+        logRecipesThatMadeChanges(result);
+    }
+    
+    private void deleteOriginalFile(Path projectRoot, SourceFile sourceFile) throws IOException {
+        Path originalLocation = projectRoot.resolve(sourceFile.getSourcePath());
+        try {
+            Files.delete(originalLocation);
+        } catch (IOException e) {
+            throw new IOException(
+                    String.format("Unable to delete file %s: %s", originalLocation.toAbsolutePath(), e.getMessage()), e);
+        }
+    }
+    
+    private void createMovedFile(Path projectRoot, SourceFile sourceFile) throws IOException {
+        // Ensure directories exist
+        Path targetLocation = projectRoot.resolve(sourceFile.getSourcePath());
+        createParentDirectories(targetLocation);
+        
+        // Write file content
+        Charset charset = sourceFile.getCharset();
+        String content = new String(sourceFile.printAll().getBytes(charset), charset);
+        writeFileContent(targetLocation, charset, content);
+    }
+    
+    private void createParentDirectories(Path filePath) {
+        File parentDir = filePath.toFile().getParentFile();
+        if (!parentDir.exists() && !parentDir.mkdirs()) {
+            logger.warn("Failed to create directory: {}", parentDir);
         }
     }
     
