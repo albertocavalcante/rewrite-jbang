@@ -404,7 +404,7 @@ class Rewrite implements Callable<Integer> {
         try (Stream<Path> walk = Files.walk(sourceRoot)) {
             walk.filter(p -> !Files.isDirectory(p))
                 .filter(p -> hasResourceExtension(p, resourceExtensions))
-                .map(it -> normalizePathSafely(it))
+                .map(Rewrite::normalizePathSafely)
                 .filter(Objects::nonNull)
                 .forEach(resourceFiles::add);
         }
