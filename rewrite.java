@@ -376,30 +376,52 @@ class Rewrite implements Callable<Integer> {
         Set<String> resourceExtensions = Set.of(".yml", ".yaml", ".properties", ".xml", ".toml");
 
         for (String sourceDir : sourceDirectories) {
-            File sourceDirectoryFile = new File(sourceDir);
-            if (!sourceDirectoryFile.exists() || !sourceDirectoryFile.isDirectory()) {
-                continue;
-            }
-            Path sourceRoot = sourceDirectoryFile.toPath();
-            try (Stream<Path> walk = Files.walk(sourceRoot)) {
-                walk.filter(p -> !Files.isDirectory(p))
-                        .filter(p -> {
-                            String fileName = p.getFileName().toString();
-                            return resourceExtensions.stream().anyMatch(fileName::endsWith);
-                        })
-                        .map(it -> {
-                            try {
-                                return it.toRealPath().normalize();
-                            } catch (IOException e) {
-                                throw new RuntimeException(e);
-                            }
-                        })
-                        .forEach(resourceFiles::add);
-            } catch (IOException e) {
-                logger.warn("Could not scan directory for resources: {} - {}", sourceRoot, e.getMessage());
-            }
+            addResourcesFromDirectory(resourceFiles, resourceExtensions, sourceDir);
         }
         return resourceFiles;
+    }
+    
+    private static void addResourcesFromDirectory(Set<Path> resourceFiles, Set<String> resourceExtensions, String sourceDir) {
+        File sourceDirectoryFile = new File(sourceDir);
+        if (!isValidDirectory(sourceDirectoryFile)) {
+            return;
+        }
+        
+        Path sourceRoot = sourceDirectoryFile.toPath();
+        try {
+            findAndAddResources(resourceFiles, resourceExtensions, sourceRoot);
+        } catch (IOException e) {
+            logger.warn("Could not scan directory for resources: {} - {}", sourceRoot, e.getMessage());
+        }
+    }
+    
+    private static boolean isValidDirectory(File dir) {
+        return dir.exists() && dir.isDirectory();
+    }
+    
+    private static void findAndAddResources(Set<Path> resourceFiles, Set<String> resourceExtensions, Path sourceRoot) 
+            throws IOException {
+        try (Stream<Path> walk = Files.walk(sourceRoot)) {
+            walk.filter(p -> !Files.isDirectory(p))
+                .filter(p -> hasResourceExtension(p, resourceExtensions))
+                .map(it -> normalizePathSafely(it))
+                .filter(Objects::nonNull)
+                .forEach(resourceFiles::add);
+        }
+    }
+    
+    private static boolean hasResourceExtension(Path path, Set<String> resourceExtensions) {
+        String fileName = path.getFileName().toString();
+        return resourceExtensions.stream().anyMatch(fileName::endsWith);
+    }
+    
+    private static Path normalizePathSafely(Path path) {
+        try {
+            return path.toRealPath().normalize();
+        } catch (IOException e) {
+            logger.warn("Could not normalize path: {} - {}", path, e.getMessage());
+            return null;
+        }
     }
 
     public static class ResultsContainer {
