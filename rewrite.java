@@ -19,6 +19,8 @@
 //DEPS org.openrewrite:rewrite-toml
 //DEPS org.openrewrite:rewrite-yaml
 
+//SOURCES LoggingUtils.java
+
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptySet;
 import static java.util.stream.Collectors.joining;
@@ -82,15 +84,6 @@ import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import org.fusesource.jansi.AnsiConsole;
 
-// Logback imports
-import ch.qos.logback.classic.LoggerContext;
-import ch.qos.logback.classic.Level;
-import ch.qos.logback.classic.encoder.PatternLayoutEncoder;
-import ch.qos.logback.classic.spi.ILoggingEvent;
-import ch.qos.logback.core.ConsoleAppender;
-import ch.qos.logback.core.filter.Filter;
-import ch.qos.logback.core.spi.FilterReply;
-
 @Command(name = "rewrite", mixinStandardHelpOptions = true, version = "rewrite 0.2", description = "rewrite made with jbang", subcommands = Rewrite.RewriteDiscover.class)
 class Rewrite implements Callable<Integer> {
 
@@ -99,340 +92,19 @@ class Rewrite implements Callable<Integer> {
     // Singleton instance for static method access
     private static final Rewrite INSTANCE = new Rewrite();
 
-    // SLF4J Logger - making it public static so inner classes can access it
+    // SLF4J Logger
     public static final Logger logger = LoggerFactory.getLogger(Rewrite.class);
-    
-    // Custom logger wrapper to filter out timestamp-formatted logs
-    private static class FilteredLogger implements Logger {
-        private final Logger delegate;
-        private static final Pattern timestampPattern = 
-            Pattern.compile("\\d{2}:\\d{2}:\\d{2}\\.\\d{3}.*|.*\\[main\\].*|.*INFO\\s+Rewrite\\s*--.*");
-        
-        public FilteredLogger(Logger delegate) {
-            this.delegate = delegate;
-        }
-        
-        private boolean shouldFilter(String msg) {
-            return msg != null && timestampPattern.matcher(msg).matches();
-        }
-
-        @Override
-        public String getName() {
-            return delegate.getName();
-        }
-
-        @Override
-        public boolean isTraceEnabled() {
-            return delegate.isTraceEnabled();
-        }
-
-        @Override
-        public void trace(String msg) {
-            if (!shouldFilter(msg)) delegate.trace(msg);
-        }
-
-        @Override
-        public void trace(String format, Object arg) {
-            if (!shouldFilter(format)) delegate.trace(format, arg);
-        }
-
-        @Override
-        public void trace(String format, Object arg1, Object arg2) {
-            if (!shouldFilter(format)) delegate.trace(format, arg1, arg2);
-        }
-
-        @Override
-        public void trace(String format, Object... arguments) {
-            if (!shouldFilter(format)) delegate.trace(format, arguments);
-        }
-
-        @Override
-        public void trace(String msg, Throwable t) {
-            if (!shouldFilter(msg)) delegate.trace(msg, t);
-        }
-
-        @Override
-        public boolean isTraceEnabled(org.slf4j.Marker marker) {
-            return delegate.isTraceEnabled(marker);
-        }
-
-        @Override
-        public void trace(org.slf4j.Marker marker, String msg) {
-            if (!shouldFilter(msg)) delegate.trace(marker, msg);
-        }
-
-        @Override
-        public void trace(org.slf4j.Marker marker, String format, Object arg) {
-            if (!shouldFilter(format)) delegate.trace(marker, format, arg);
-        }
-
-        @Override
-        public void trace(org.slf4j.Marker marker, String format, Object arg1, Object arg2) {
-            if (!shouldFilter(format)) delegate.trace(marker, format, arg1, arg2);
-        }
-
-        @Override
-        public void trace(org.slf4j.Marker marker, String format, Object... argArray) {
-            if (!shouldFilter(format)) delegate.trace(marker, format, argArray);
-        }
-
-        @Override
-        public void trace(org.slf4j.Marker marker, String msg, Throwable t) {
-            if (!shouldFilter(msg)) delegate.trace(marker, msg, t);
-        }
-
-        @Override
-        public boolean isDebugEnabled() {
-            return delegate.isDebugEnabled();
-        }
-
-        @Override
-        public void debug(String msg) {
-            if (!shouldFilter(msg)) delegate.debug(msg);
-        }
-
-        @Override
-        public void debug(String format, Object arg) {
-            if (!shouldFilter(format)) delegate.debug(format, arg);
-        }
-
-        @Override
-        public void debug(String format, Object arg1, Object arg2) {
-            if (!shouldFilter(format)) delegate.debug(format, arg1, arg2);
-        }
-
-        @Override
-        public void debug(String format, Object... arguments) {
-            if (!shouldFilter(format)) delegate.debug(format, arguments);
-        }
-
-        @Override
-        public void debug(String msg, Throwable t) {
-            if (!shouldFilter(msg)) delegate.debug(msg, t);
-        }
-
-        @Override
-        public boolean isDebugEnabled(org.slf4j.Marker marker) {
-            return delegate.isDebugEnabled(marker);
-        }
-
-        @Override
-        public void debug(org.slf4j.Marker marker, String msg) {
-            if (!shouldFilter(msg)) delegate.debug(marker, msg);
-        }
-
-        @Override
-        public void debug(org.slf4j.Marker marker, String format, Object arg) {
-            if (!shouldFilter(format)) delegate.debug(marker, format, arg);
-        }
-
-        @Override
-        public void debug(org.slf4j.Marker marker, String format, Object arg1, Object arg2) {
-            if (!shouldFilter(format)) delegate.debug(marker, format, arg1, arg2);
-        }
-
-        @Override
-        public void debug(org.slf4j.Marker marker, String format, Object... arguments) {
-            if (!shouldFilter(format)) delegate.debug(marker, format, arguments);
-        }
-
-        @Override
-        public void debug(org.slf4j.Marker marker, String msg, Throwable t) {
-            if (!shouldFilter(msg)) delegate.debug(marker, msg, t);
-        }
-
-        @Override
-        public boolean isInfoEnabled() {
-            return delegate.isInfoEnabled();
-        }
-
-        @Override
-        public void info(String msg) {
-            if (!shouldFilter(msg)) delegate.info(msg);
-        }
-
-        @Override
-        public void info(String format, Object arg) {
-            if (!shouldFilter(format)) delegate.info(format, arg);
-        }
-
-        @Override
-        public void info(String format, Object arg1, Object arg2) {
-            if (!shouldFilter(format)) delegate.info(format, arg1, arg2);
-        }
-
-        @Override
-        public void info(String format, Object... arguments) {
-            if (!shouldFilter(format)) delegate.info(format, arguments);
-        }
-
-        @Override
-        public void info(String msg, Throwable t) {
-            if (!shouldFilter(msg)) delegate.info(msg, t);
-        }
-
-        @Override
-        public boolean isInfoEnabled(org.slf4j.Marker marker) {
-            return delegate.isInfoEnabled(marker);
-        }
-
-        @Override
-        public void info(org.slf4j.Marker marker, String msg) {
-            if (!shouldFilter(msg)) delegate.info(marker, msg);
-        }
-
-        @Override
-        public void info(org.slf4j.Marker marker, String format, Object arg) {
-            if (!shouldFilter(format)) delegate.info(marker, format, arg);
-        }
-
-        @Override
-        public void info(org.slf4j.Marker marker, String format, Object arg1, Object arg2) {
-            if (!shouldFilter(format)) delegate.info(marker, format, arg1, arg2);
-        }
-
-        @Override
-        public void info(org.slf4j.Marker marker, String format, Object... arguments) {
-            if (!shouldFilter(format)) delegate.info(marker, format, arguments);
-        }
-
-        @Override
-        public void info(org.slf4j.Marker marker, String msg, Throwable t) {
-            if (!shouldFilter(msg)) delegate.info(marker, msg, t);
-        }
-
-        @Override
-        public boolean isWarnEnabled() {
-            return delegate.isWarnEnabled();
-        }
-
-        @Override
-        public void warn(String msg) {
-            if (!shouldFilter(msg)) delegate.warn(msg);
-        }
-
-        @Override
-        public void warn(String format, Object arg) {
-            if (!shouldFilter(format)) delegate.warn(format, arg);
-        }
-
-        @Override
-        public void warn(String format, Object... arguments) {
-            if (!shouldFilter(format)) delegate.warn(format, arguments);
-        }
-
-        @Override
-        public void warn(String format, Object arg1, Object arg2) {
-            if (!shouldFilter(format)) delegate.warn(format, arg1, arg2);
-        }
-
-        @Override
-        public void warn(String msg, Throwable t) {
-            if (!shouldFilter(msg)) delegate.warn(msg, t);
-        }
-
-        @Override
-        public boolean isWarnEnabled(org.slf4j.Marker marker) {
-            return delegate.isWarnEnabled(marker);
-        }
-
-        @Override
-        public void warn(org.slf4j.Marker marker, String msg) {
-            if (!shouldFilter(msg)) delegate.warn(marker, msg);
-        }
-
-        @Override
-        public void warn(org.slf4j.Marker marker, String format, Object arg) {
-            if (!shouldFilter(format)) delegate.warn(marker, format, arg);
-        }
-
-        @Override
-        public void warn(org.slf4j.Marker marker, String format, Object arg1, Object arg2) {
-            if (!shouldFilter(format)) delegate.warn(marker, format, arg1, arg2);
-        }
-
-        @Override
-        public void warn(org.slf4j.Marker marker, String format, Object... arguments) {
-            if (!shouldFilter(format)) delegate.warn(marker, format, arguments);
-        }
-
-        @Override
-        public void warn(org.slf4j.Marker marker, String msg, Throwable t) {
-            if (!shouldFilter(msg)) delegate.warn(marker, msg, t);
-        }
-
-        @Override
-        public boolean isErrorEnabled() {
-            return delegate.isErrorEnabled();
-        }
-
-        @Override
-        public void error(String msg) {
-            if (!shouldFilter(msg)) delegate.error(msg);
-        }
-
-        @Override
-        public void error(String format, Object arg) {
-            if (!shouldFilter(format)) delegate.error(format, arg);
-        }
-
-        @Override
-        public void error(String format, Object arg1, Object arg2) {
-            if (!shouldFilter(format)) delegate.error(format, arg1, arg2);
-        }
-
-        @Override
-        public void error(String format, Object... arguments) {
-            if (!shouldFilter(format)) delegate.error(format, arguments);
-        }
-
-        @Override
-        public void error(String msg, Throwable t) {
-            if (!shouldFilter(msg)) delegate.error(msg, t);
-        }
-
-        @Override
-        public boolean isErrorEnabled(org.slf4j.Marker marker) {
-            return delegate.isErrorEnabled(marker);
-        }
-
-        @Override
-        public void error(org.slf4j.Marker marker, String msg) {
-            if (!shouldFilter(msg)) delegate.error(marker, msg);
-        }
-
-        @Override
-        public void error(org.slf4j.Marker marker, String format, Object arg) {
-            if (!shouldFilter(format)) delegate.error(marker, format, arg);
-        }
-
-        @Override
-        public void error(org.slf4j.Marker marker, String format, Object arg1, Object arg2) {
-            if (!shouldFilter(format)) delegate.error(marker, format, arg1, arg2);
-        }
-
-        @Override
-        public void error(org.slf4j.Marker marker, String format, Object... arguments) {
-            if (!shouldFilter(format)) delegate.error(marker, format, arguments);
-        }
-
-        @Override
-        public void error(org.slf4j.Marker marker, String msg, Throwable t) {
-            if (!shouldFilter(msg)) delegate.error(marker, msg, t);
-        }
-    }
 
     public static Rewrite getInstance() {
         return INSTANCE;
     }
 
-    // Private constructor to enforce singleton pattern
     private Rewrite() {
-        // Private constructor to prevent direct instantiation
+        // Private constructor for singleton
     }
 
-    @Option(names = { "--baseDir",
-            "--base-dir" }, description = "Base directory for the project. Defaults to current directory.")
+    @Option(names = {"--baseDir",
+            "--base-dir"}, description = "Base directory for the project. Defaults to current directory.")
     private String baseDirPath = ".";
 
     private Path baseDir() {
@@ -445,7 +117,7 @@ class Rewrite implements Callable<Integer> {
     @Option(names = "--styles", split = ",")
     protected Set<String> activeStyles = Collections.emptySet();
 
-    @Option(names = { "--javaSources", "--java-sources" }, defaultValue = ".", split = ",")
+    @Option(names = {"--javaSources", "--java-sources"}, defaultValue = ".", split = ",")
     List<String> javaSourcePaths = emptyList();
 
     @Option(names = "--discover-resources", defaultValue = "true", description = "Attempt to discover resource files (yml, xml, properties) in source directories.")
@@ -454,13 +126,13 @@ class Rewrite implements Callable<Integer> {
     @Option(names = "--classpath", description = "Specify the classpath for type resolution, using the system path separator.", split = "${sys:path.separator}")
     List<String> classpathElements = emptyList();
 
-    @Option(names = { "--failOnInvalidActiveRecipes", "--fail-on-invalid-recipes" }, defaultValue = "false")
+    @Option(names = {"--failOnInvalidActiveRecipes", "--fail-on-invalid-recipes"}, defaultValue = "false")
     boolean failOnInvalidActiveRecipes;
 
-    @Option(names = { "--reportOutputDirectory", "--report" }, defaultValue = "./rewrite")
+    @Option(names = {"--reportOutputDirectory", "--report"}, defaultValue = "./rewrite")
     private File reportOutputDirectory;
 
-    @Option(names = { "--failOnDryRunResults", "--fail-on-dry-run" }, defaultValue = "false")
+    @Option(names = {"--failOnDryRunResults", "--fail-on-dry-run"}, defaultValue = "false")
     boolean failOnDryRunResults;
 
     @Option(names = "--dry-run", defaultValue = "false")
@@ -478,126 +150,28 @@ class Rewrite implements Callable<Integer> {
     LogLevel recipeChangeLogLevel = LogLevel.WARN;
 
     // Add a flag to disable ANSI colors
-    @Option(names = { "--no-color" }, description = "Disable colorized output", defaultValue = "false")
+    @Option(names = {"--no-color"}, description = "Disable colorized output", defaultValue = "false")
     boolean noColor;
 
     public static void main(String... args) {
-        // Configure Logback programmatically before anything else
-        configureLogbackProgrammatically();
-        
-        // Install Jansi for cross-platform ANSI color support
+        // Initialize Jansi - required for ANSI colors in Windows
         AnsiConsole.systemInstall();
+
         try {
-            // Execute the command 
-            CommandLine commandLine = new CommandLine(new Rewrite())
-                    .setColorScheme(CommandLine.Help.defaultColorScheme(CommandLine.Help.Ansi.AUTO));
-            int exitCode = commandLine.execute(args);
+            // Configure the logging system
+            LoggingUtils.configureLogbackProgrammatically();
+
+            // Create instance and parse command line
+            CommandLine cmd = new CommandLine(INSTANCE);
+            
+            // Set color scheme for help output
+            cmd.setColorScheme(CommandLine.Help.defaultColorScheme(CommandLine.Help.Ansi.AUTO));
+
+            int exitCode = cmd.execute(args);
             System.exit(exitCode);
         } finally {
-            // Clean up Jansi when done
+            // Restore terminal settings
             AnsiConsole.systemUninstall();
-        }
-    }
-    
-    /**
-     * Configure Logback programmatically, without using logback.xml
-     */
-    private static void configureLogbackProgrammatically() {
-        // Completely disable SLF4J/Logback startup messages
-        System.setProperty("logback.statusListenerClass", "ch.qos.logback.core.status.NopStatusListener");
-        
-        // Get the LoggerContext
-        LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
-        
-        // Reset any existing configuration
-        context.reset();
-        
-        // Create a pattern encoder for normal output without timestamps or thread names
-        PatternLayoutEncoder mainEncoder = new PatternLayoutEncoder();
-        mainEncoder.setContext(context);
-        mainEncoder.setPattern("%msg%n");
-        mainEncoder.start();
-        
-        // Create our custom appender with colorization and filtering
-        PicoCLIFilteringAppender mainAppender = new PicoCLIFilteringAppender();
-        mainAppender.setContext(context);
-        mainAppender.setEncoder(mainEncoder);
-        mainAppender.start();
-        
-        // Explicitly handle specific loggers
-        
-        // Turn off all Logback's internal logging
-        ch.qos.logback.classic.Logger logbackLogger = context.getLogger("ch.qos.logback");
-        logbackLogger.setLevel(Level.OFF);
-        
-        // Suppress the specific troublesome logger
-        ch.qos.logback.classic.Logger rewriteJavaLogger = context.getLogger("org.openrewrite.java.JavaParser");
-        rewriteJavaLogger.setLevel(Level.OFF);
-        
-        ch.qos.logback.classic.Logger isolatedJavaLogger = context.getLogger("org.openrewrite.java.isolated");
-        isolatedJavaLogger.setLevel(Level.OFF);
-        
-        // Set minimal level for all OpenRewrite logs
-        ch.qos.logback.classic.Logger openrewriteLogger = context.getLogger("org.openrewrite");
-        openrewriteLogger.setLevel(Level.WARN);
-        
-        // Configure root logger with our custom appender
-        ch.qos.logback.classic.Logger rootLogger = context.getLogger(ch.qos.logback.classic.Logger.ROOT_LOGGER_NAME);
-        rootLogger.setLevel(Level.INFO);
-        rootLogger.addAppender(mainAppender);
-    }
-    
-    /**
-     * Custom Logback appender that colorizes and filters log messages
-     */
-    static class PicoCLIFilteringAppender extends ConsoleAppender<ILoggingEvent> {
-        // Pattern to detect the log lines we want to filter out
-        private static final Pattern FILTER_PATTERN = Pattern.compile(
-            "\\d{2}:\\d{2}:\\d{2}\\.\\d{3}.*|.*\\[main\\].*|.*INFO\\s+Rewrite\\s*--.*");
-            
-        @Override
-        protected void append(ILoggingEvent event) {
-            // Skip unwanted log messages that match our pattern
-            if (shouldFilter(event)) {
-                return;
-            }
-            
-            // Format the message
-            String formattedMessage = new String(encoder.encode(event));
-            
-            // Apply appropriate color based on log level
-            String colorizedMessage = colorizeByLevel(event, formattedMessage);
-            
-            // Output to console
-            System.out.print(colorizedMessage);
-        }
-        
-        private boolean shouldFilter(ILoggingEvent event) {
-            // Filter out empty messages
-            if (event.getMessage() == null || event.getMessage().isEmpty()) {
-                return true;
-            }
-            
-            // Filter based on our pattern
-            if (FILTER_PATTERN.matcher(event.getMessage()).matches()) {
-                return true;
-            }
-            
-            // Filter based on formatted message (with arguments)
-            String formattedMessage = event.getFormattedMessage();
-            return FILTER_PATTERN.matcher(formattedMessage).matches();
-        }
-        
-        private String colorizeByLevel(ILoggingEvent event, String message) {
-            String template = switch (event.getLevel().toInt()) {
-                case Level.ERROR_INT -> "@|red %s|@";        // Red for errors
-                case Level.WARN_INT -> "@|yellow %s|@";     // Yellow for warnings
-                case Level.INFO_INT -> "@|green %s|@";      // Green for info
-                case Level.DEBUG_INT -> "@|blue %s|@";      // Blue for debug
-                default -> "%s";                            // No color for other levels
-            };
-            
-            return CommandLine.Help.Ansi.AUTO.string(String.format(template, message));
         }
     }
 
@@ -609,8 +183,8 @@ class Rewrite implements Callable<Integer> {
     }
 
     protected ExecutionContext executionContext() {
-        return new InMemoryExecutionContext(t -> 
-            logger.warn("Error during recipe execution: {}", t.getMessage(), t)
+        return new InMemoryExecutionContext(t ->
+                logger.warn("Error during recipe execution: {}", t.getMessage(), t)
         );
     }
 
@@ -622,12 +196,12 @@ class Rewrite implements Callable<Integer> {
         RawRepositories rawRepositories = new RawRepositories();
         List<RawRepositories.Repository> transformedRepositories = repositoriesToMap
                 .stream().map(r -> new RawRepositories.Repository(
-                        r.getId(),
-                        r.getUrl(),
-                        r.getReleases() == null ? null
-                                : new RawRepositories.ArtifactPolicy(Boolean.toString(r.getReleases().isEnabled())),
-                        r.getSnapshots() == null ? null
-                                : new RawRepositories.ArtifactPolicy(Boolean.toString(r.getSnapshots().isEnabled()))))
+                r.getId(),
+                r.getUrl(),
+                r.getReleases() == null ? null
+                        : new RawRepositories.ArtifactPolicy(Boolean.toString(r.getReleases().isEnabled())),
+                r.getSnapshots() == null ? null
+                        : new RawRepositories.ArtifactPolicy(Boolean.toString(r.getSnapshots().isEnabled()))))
                 .toList();
         rawRepositories.setRepositories(transformedRepositories);
         return rawRepositories;
@@ -635,7 +209,7 @@ class Rewrite implements Callable<Integer> {
 
     private MavenSettings buildSettings() {
         MavenExecutionRequest mer = new DefaultMavenExecutionRequest();
-        
+
         String localRepo = determineLocalRepository(mer);
         MavenSettings.Profiles profiles = buildProfiles(mer);
         MavenSettings.ActiveProfiles activeProfiles = extractActiveProfiles(mer);
@@ -644,32 +218,32 @@ class Rewrite implements Callable<Integer> {
 
         return new MavenSettings(localRepo, profiles, activeProfiles, mirrors, servers);
     }
-    
+
     private String determineLocalRepository(MavenExecutionRequest mer) {
         File localRepoPath = mer.getLocalRepositoryPath();
         return (localRepoPath != null)
                 ? localRepoPath.toString()
                 : Paths.get(System.getProperty("user.home"), ".m2", "repository").toString();
     }
-    
+
     private MavenSettings.Profiles buildProfiles(MavenExecutionRequest mer) {
         MavenSettings.Profiles profiles = new MavenSettings.Profiles();
         profiles.setProfiles(
                 mer.getProfiles().stream()
-                   .map(this::convertProfile)
-                   .toList());
+                        .map(this::convertProfile)
+                        .toList());
         return profiles;
     }
-    
+
     private MavenSettings.Profile convertProfile(org.apache.maven.model.Profile p) {
         ProfileActivation.Property activationProperty = extractActivationProperty(p);
-        
+
         return new MavenSettings.Profile(
                 p.getId(),
                 createProfileActivation(p, activationProperty),
                 buildRawRepositories(p.getRepositories()));
     }
-    
+
     private ProfileActivation.Property extractActivationProperty(org.apache.maven.model.Profile p) {
         if (p.getActivation() != null && p.getActivation().getProperty() != null) {
             return new ProfileActivation.Property(
@@ -678,34 +252,34 @@ class Rewrite implements Callable<Integer> {
         }
         return null;
     }
-    
+
     private ProfileActivation createProfileActivation(org.apache.maven.model.Profile p, ProfileActivation.Property property) {
         if (p.getActivation() == null) {
             return null;
         }
-        
+
         return new ProfileActivation(
                 p.getActivation().isActiveByDefault(),
                 p.getActivation().getJdk(),
                 property);
     }
-    
+
     private MavenSettings.ActiveProfiles extractActiveProfiles(MavenExecutionRequest mer) {
         MavenSettings.ActiveProfiles activeProfiles = new MavenSettings.ActiveProfiles();
         List<String> merActiveProfiles = mer.getActiveProfiles();
         activeProfiles.setActiveProfiles(merActiveProfiles != null ? merActiveProfiles : Collections.emptyList());
         return activeProfiles;
     }
-    
+
     private MavenSettings.Mirrors buildMirrors(MavenExecutionRequest mer) {
         MavenSettings.Mirrors mirrors = new MavenSettings.Mirrors();
         mirrors.setMirrors(
                 mer.getMirrors().stream()
-                   .map(this::convertMirror)
-                   .toList());
+                        .map(this::convertMirror)
+                        .toList());
         return mirrors;
     }
-    
+
     private MavenSettings.Mirror convertMirror(org.apache.maven.settings.Mirror m) {
         return new MavenSettings.Mirror(
                 m.getId(),
@@ -714,7 +288,7 @@ class Rewrite implements Callable<Integer> {
                 null,
                 null);
     }
-    
+
     private MavenSettings.Servers createEmptyServers() {
         MavenSettings.Servers servers = new MavenSettings.Servers();
         servers.setServers(emptyList());
@@ -728,45 +302,45 @@ class Rewrite implements Callable<Integer> {
             logger.info("No pom.xml found in base directory: {}", baseDir());
             return null;
         }
-        
+
         List<Path> pomToParse = Collections.singletonList(pomPath);
         MavenParser.Builder parserBuilder = createMavenParserBuilder(ctx);
         List<SourceFile> parsedPoms = parseWithBuilder(parserBuilder, pomToParse, ctx);
-        
+
         return extractXmlDocument(parsedPoms);
     }
-    
+
     private MavenParser.Builder createMavenParserBuilder(ExecutionContext ctx) {
         MavenParser.Builder builder = MavenParser.builder();
-        
+
         // Configure maven settings
         MavenSettings settings = buildSettings();
         MavenExecutionContextView mavenExecutionContext = MavenExecutionContextView.view(ctx);
         mavenExecutionContext.setMavenSettings(settings);
-        
+
         // Add active profiles if available
         addActiveProfilesToBuilder(builder, settings);
-        
+
         return builder;
     }
-    
+
     private void addActiveProfilesToBuilder(MavenParser.Builder builder, MavenSettings settings) {
         if (settings.getActiveProfiles() == null) {
             return;
         }
-        
+
         List<String> activeProfiles = settings.getActiveProfiles().getActiveProfiles();
         if (activeProfiles != null && !activeProfiles.isEmpty()) {
             builder.activeProfiles(activeProfiles.toArray(new String[0]));
         }
     }
-    
+
     private List<SourceFile> parseWithBuilder(MavenParser.Builder builder, List<Path> paths, ExecutionContext ctx) {
         return builder.build()
                 .parse(paths, baseDir(), ctx)
                 .toList();
     }
-    
+
     private Xml.Document extractXmlDocument(List<SourceFile> parsedFiles) {
         return parsedFiles.stream()
                 .filter(Xml.Document.class::isInstance)
@@ -823,13 +397,13 @@ class Rewrite implements Callable<Integer> {
         }
         return resourceFiles;
     }
-    
+
     private static void addResourcesFromDirectory(Set<Path> resourceFiles, Set<String> resourceExtensions, String sourceDir) {
         File sourceDirectoryFile = new File(sourceDir);
         if (!isValidDirectory(sourceDirectoryFile)) {
             return;
         }
-        
+
         Path sourceRoot = sourceDirectoryFile.toPath();
         try {
             findAndAddResources(resourceFiles, resourceExtensions, sourceRoot);
@@ -837,27 +411,27 @@ class Rewrite implements Callable<Integer> {
             logger.warn("Could not scan directory for resources: {} - {}", sourceRoot, e.getMessage());
         }
     }
-    
+
     private static boolean isValidDirectory(File dir) {
         return dir.exists() && dir.isDirectory();
     }
-    
-    private static void findAndAddResources(Set<Path> resourceFiles, Set<String> resourceExtensions, Path sourceRoot) 
+
+    private static void findAndAddResources(Set<Path> resourceFiles, Set<String> resourceExtensions, Path sourceRoot)
             throws IOException {
         try (Stream<Path> walk = Files.walk(sourceRoot)) {
             walk.filter(p -> !Files.isDirectory(p))
-                .filter(p -> hasResourceExtension(p, resourceExtensions))
-                .map(Rewrite::normalizePathSafely)
-                .filter(Objects::nonNull)
-                .forEach(resourceFiles::add);
+                    .filter(p -> hasResourceExtension(p, resourceExtensions))
+                    .map(Rewrite::normalizePathSafely)
+                    .filter(Objects::nonNull)
+                    .forEach(resourceFiles::add);
         }
     }
-    
+
     private static boolean hasResourceExtension(Path path, Set<String> resourceExtensions) {
         String fileName = path.getFileName().toString();
         return resourceExtensions.stream().anyMatch(fileName::endsWith);
     }
-    
+
     private static Path normalizePathSafely(Path path) {
         try {
             return path.toRealPath().normalize();
@@ -876,39 +450,39 @@ class Rewrite implements Callable<Integer> {
 
         public ResultsContainer(Path projectRoot, Collection<Result> results) {
             this.projectRoot = projectRoot;
-            
+
             if (results == null || results.isEmpty()) {
                 return;
             }
-            
+
             results.forEach(this::categorizeResult);
         }
-        
+
         private void categorizeResult(Result result) {
             // Skip invalid results that have neither before nor after state
             if (result.getBefore() == null && result.getAfter() == null) {
                 return;
             }
-            
+
             // Generated new file
             if (result.getBefore() == null && result.getAfter() != null) {
                 generated.add(result);
                 return;
             }
-            
+
             // Deleted file
             if (result.getBefore() != null && result.getAfter() == null) {
                 deleted.add(result);
                 return;
             }
-            
+
             // Moved file (path changed)
-            if (result.getBefore() != null && result.getAfter() != null 
+            if (result.getBefore() != null && result.getAfter() != null
                     && !result.getBefore().getSourcePath().equals(result.getAfter().getSourcePath())) {
                 moved.add(result);
                 return;
             }
-            
+
             // Refactored in place (content changed but path is the same)
             refactoredInPlace.add(result);
         }
@@ -943,7 +517,7 @@ class Rewrite implements Callable<Integer> {
         }
         return recipe;
     }
-    
+
     // Extract method to parse Java sources
     private List<SourceFile> parseJavaSources(List<Path> javaSources, List<Path> classpath, List<NamedStyles> styles, ExecutionContext ctx) {
         List<SourceFile> sourceFiles = new ArrayList<>();
@@ -956,12 +530,12 @@ class Rewrite implements Callable<Integer> {
         logger.info("{} java files parsed.", sourceFiles.size());
         return sourceFiles;
     }
-    
+
     // Extract method to parse resource files of a specific type
-    private void parseResourcesOfType(List<SourceFile> sourceFiles, Set<Path> resources, String type, 
-                               java.util.function.Predicate<Path> filter, 
-                               java.util.function.Function<List<Path>, Stream<SourceFile>> parser,
-                               ExecutionContext ctx) {
+    private void parseResourcesOfType(List<SourceFile> sourceFiles, Set<Path> resources, String type,
+                                      java.util.function.Predicate<Path> filter,
+                                      java.util.function.Function<List<Path>, Stream<SourceFile>> parser,
+                                      ExecutionContext ctx) {
         logger.info("Parsing {} files...", type);
         List<Path> typePaths = resources.stream().filter(filter).toList();
         if (!typePaths.isEmpty()) {
@@ -1006,20 +580,44 @@ class Rewrite implements Callable<Integer> {
         return executeRecipesAndGetResults(recipe, sourceFiles, ctx);
     }
 
-    // Direct console output with colors
-    private void printColored(String message, String color) {
-        if (noColor) {
-            System.out.println(message);
-        } else {
-            String template = switch(color) {
-                case "red" -> "@|red %s|@";
-                case "green" -> "@|green %s|@";
-                case "yellow" -> "@|yellow %s|@";
-                case "blue" -> "@|blue %s|@";
-                case "cyan" -> "@|cyan %s|@";
-                default -> "%s";
-            };
-            System.out.println(CommandLine.Help.Ansi.AUTO.string(String.format(template, message)));
+    /**
+     * Enhanced console output with prefixes, symbols and structured indentation
+     */
+    private void printColored(String message, String style) {
+        LoggingUtils.printColored(message, style, noColor);
+    }
+
+    /**
+     * Format message with structured indentation and consistent styling
+     */
+    private void printIndented(String message, String style, int indentLevel) {
+        LoggingUtils.printIndented(message, style, indentLevel, noColor);
+    }
+
+    // log method to mimic plugin behavior with improved formatting
+    protected void log(LogLevel logLevel, CharSequence content) {
+        String style;
+
+        if (logLevel == LogLevel.DEBUG) {
+            style = "info";
+            if (logger.isInfoEnabled()) {
+                printColored(content.toString(), style);
+            }
+        } else if (logLevel == LogLevel.INFO) {
+            style = "info";
+            if (logger.isInfoEnabled()) {
+                printColored(content.toString(), style);
+            }
+        } else if (logLevel == LogLevel.WARN) {
+            style = "warning";
+            if (logger.isWarnEnabled()) {
+                printColored(content.toString(), style);
+            }
+        } else if (logLevel == LogLevel.ERROR) {
+            style = "error";
+            if (logger.isErrorEnabled()) {
+                printColored(content.toString(), style);
+            }
         }
     }
 
@@ -1027,52 +625,47 @@ class Rewrite implements Callable<Integer> {
     // Source:
     // https://sourcegraph.com/github.com/openrewrite/rewrite-maven-plugin@v5.40.0/-/blob/src/main/java/org/openrewrite/maven/AbstractRewriteBaseRunMojo.java?L461-469
     protected void logRecipesThatMadeChanges(Result result) {
-        String indent = INDENT_SPACES;
-        // Use a fixed size for prefix to avoid string concatenation in a loop
-        StringBuilder prefix = new StringBuilder(INDENT_SPACES);
+        int indentLevel = 2; // Start with 2-level indent
+        // Print recipes that made changes with progressive indentation
         for (RecipeDescriptor recipeDescriptor : result.getRecipeDescriptorsThatMadeChanges()) {
-            logRecipe(recipeDescriptor, prefix.toString());
-            prefix.append(indent);
+            logRecipe(recipeDescriptor, indentLevel);
+            indentLevel += 2; // Increase indent for child recipes
         }
     }
 
     // Updated Source URL
     // Source:
     // https://sourcegraph.com/github.com/openrewrite/rewrite-maven-plugin@v5.40.0/-/blob/src/main/java/org/openrewrite/maven/AbstractRewriteBaseRunMojo.java?L471-489
-    private void logRecipe(RecipeDescriptor rd, String prefix) {
-        String message = buildRecipeLogMessage(rd, prefix);
-        if (!noColor) {
-            printColored(message, "blue");
-        } else {
-            log(recipeChangeLogLevel, message);
-        }
-        logChildRecipes(rd, prefix);
+    private void logRecipe(RecipeDescriptor rd, int indentLevel) {
+        printIndented(buildRecipeLogMessage(rd), LoggingUtils.STYLE_RECIPE, indentLevel);
+        logChildRecipes(rd, indentLevel + 2);
     }
-    
-    // Extract recipe message building
-    private String buildRecipeLogMessage(RecipeDescriptor rd, String prefix) {
-        StringBuilder recipeString = new StringBuilder(prefix + rd.getName());
+
+    // Extract recipe message building without prefix
+    private String buildRecipeLogMessage(RecipeDescriptor rd) {
+        String message = LoggingUtils.formatJavaName(rd.getName(), noColor);
         
+        // Add recipe options if present
         String options = formatRecipeOptions(rd);
         if (!options.isEmpty()) {
-            recipeString.append(": {").append(options).append("}");
+            message += " [" + options + "]";
         }
         
-        return recipeString.toString();
+        return message;
     }
-    
+
     // Extract options formatting
     private String formatRecipeOptions(RecipeDescriptor rd) {
         if (rd.getOptions().isEmpty()) {
             return "";
         }
-        
+
         return rd.getOptions().stream()
-            .map(this::formatOption)
-            .filter(Objects::nonNull)
-            .collect(joining(", "));
+                .map(this::formatOption)
+                .filter(Objects::nonNull)
+                .collect(joining(", "));
     }
-    
+
     // Extract single option formatting
     private String formatOption(OptionDescriptor option) {
         if (option.getValue() != null) {
@@ -1080,107 +673,87 @@ class Rewrite implements Callable<Integer> {
         }
         return null;
     }
-    
+
     // Extract child recipe logging and use colors
-    private void logChildRecipes(RecipeDescriptor rd, String prefix) {
+    private void logChildRecipes(RecipeDescriptor rd, int indentLevel) {
         if (rd.getRecipeList().isEmpty()) {
             return;
         }
-        
-        String childPrefix = prefix + INDENT_SPACES;
+
+        String childPrefix = " ".repeat(indentLevel * 4);
         for (RecipeDescriptor childRecipe : rd.getRecipeList()) {
-            String message = buildRecipeLogMessage(childRecipe, childPrefix);
-            
+            String message = buildRecipeLogMessage(childRecipe);
+
             if (!noColor) {
-                printColored(message, "blue");
+                printIndented(message, LoggingUtils.STYLE_RECIPE, indentLevel);
             } else {
                 log(recipeChangeLogLevel, message);
             }
-            
-            logChildRecipes(childRecipe, childPrefix);
+
+            logChildRecipes(childRecipe, indentLevel + 2);
         }
     }
-    
-    // log method to mimic plugin behavior
-    protected void log(LogLevel logLevel, CharSequence content) {
-        switch (logLevel) {
-            case DEBUG -> {
-                // Map DEBUG to INFO for now
-                if (logger.isInfoEnabled()) {
-                    logger.info(content.toString());
-                }
-            }
-            case INFO -> {
-                if (logger.isInfoEnabled()) {
-                    logger.info(content.toString());
-                }
-            }
-            case WARN -> {
-                if (logger.isWarnEnabled()) {
-                    logger.warn(content.toString());
-                }
-            }
-            case ERROR -> {
-                if (logger.isErrorEnabled()) {
-                    logger.error(content.toString());
-                }
+
+    // Colorize the generated file reports with improved semantics
+    private void reportGeneratedFiles(ResultsContainer results) {
+        for (Result result : results.generated) {
+            if (result.getAfter() != null) {
+                printColored("File Creation:", "heading");
+                printIndented("Generate new file: " + result.getAfter().getSourcePath(), "success", 1);
+                printIndented("Applied by:", "info", 1);
+                logRecipesThatMadeChanges(result);
+                System.out.println(); // Add spacing between entries
             }
         }
     }
 
-    // Colorize the generated file reports
-    private void reportGeneratedFiles(ResultsContainer results) {
-        for (Result result : results.generated) {
-            if (result.getAfter() != null) {
-                String message = "These recipes would generate new file " + result.getAfter().getSourcePath() + ":";
-                printColored(message, "green");
-                logRecipesThatMadeChanges(result);
-            }
-        }
-    }
-    
     // Colorize the deleted file reports
     private void reportDeletedFiles(ResultsContainer results) {
         for (Result result : results.deleted) {
             if (result.getBefore() != null) {
-                String message = "These recipes would delete file " + result.getBefore().getSourcePath() + ":";
-                printColored(message, "red");
+                printColored("File Deletion:", "heading");
+                printIndented("Delete file: " + result.getBefore().getSourcePath(), "error", 1);
+                printIndented("Applied by:", "info", 1);
                 logRecipesThatMadeChanges(result);
+                System.out.println(); // Add spacing between entries
             }
         }
     }
-    
+
     // Colorize the moved file reports
     private void reportMovedFiles(ResultsContainer results) {
         for (Result result : results.moved) {
             if (result.getBefore() != null && result.getAfter() != null) {
-                String message = "These recipes would move file from " + 
-                        result.getBefore().getSourcePath() + " to " + 
-                        result.getAfter().getSourcePath() + ":";
-                printColored(message, "cyan");
+                printColored("File Move Operation:", "heading");
+                printIndented("Move from: " + result.getBefore().getSourcePath(), "warning", 1);
+                printIndented("Move to: " + result.getAfter().getSourcePath(), "success", 1);
+                printIndented("Applied by:", "info", 1);
                 logRecipesThatMadeChanges(result);
+                System.out.println(); // Add spacing between entries
             }
         }
     }
-    
+
     // Colorize the refactored file reports
     private void reportRefactoredFiles(ResultsContainer results) {
         for (Result result : results.refactoredInPlace) {
             if (result.getBefore() != null) {
-                String message = "These recipes would make changes to " + result.getBefore().getSourcePath() + ":";
-                printColored(message, "yellow");
+                printColored("Code Refactoring:", "heading");
+                printIndented("Modify file: " + result.getBefore().getSourcePath(), "warning", 1);
+                printIndented("Applied by:", "info", 1);
                 logRecipesThatMadeChanges(result);
+                System.out.println(); // Add spacing between entries
             }
         }
     }
-    
+
     // Extract method to create directory safely
     private void createDirectorySafely(File directory) {
         if (!directory.exists() && !directory.mkdirs()) {
             logger.warn("Failed to create directory: {}", directory);
         }
     }
-    
+
     // Extract method to write patch file
     private void writePatchFile(ResultsContainer results) {
         // Create report directory if needed
@@ -1190,16 +763,17 @@ class Rewrite implements Callable<Integer> {
         try (BufferedWriter writer = Files.newBufferedWriter(patchFile)) {
             // Combine all result streams and write diffs
             getAllResultsStream(results)
-                .map(Result::diff)
-                .forEach(diff -> writeLineToPatchFile(writer, diff));
+                    .map(Result::diff)
+                    .forEach(diff -> writeLineToPatchFile(writer, diff));
         } catch (Exception e) {
             throw new RewriteExecutionException("Unable to generate rewrite result file", e);
         }
-        
-        printColored("Report available:", "yellow");
-        printColored("    " + patchFile.normalize(), "cyan");
+
+        System.out.println(); // Add spacing
+        printColored("Report Generation:", "heading");
+        printIndented("Report available at: " + patchFile.normalize(), "filename", 1);
     }
-    
+
     // Helper method to get combined stream of all results
     private Stream<Result> getAllResultsStream(ResultsContainer results) {
         return Stream.concat(
@@ -1207,7 +781,7 @@ class Rewrite implements Callable<Integer> {
                 Stream.concat(results.moved.stream(), results.refactoredInPlace.stream())
         );
     }
-    
+
     // Helper method to write a line to the patch file with exception handling
     private void writeLineToPatchFile(BufferedWriter writer, String line) {
         try {
@@ -1216,7 +790,7 @@ class Rewrite implements Callable<Integer> {
             throw new RewriteExecutionException("Failed to write diff", e);
         }
     }
-    
+
     // Utility method to extract file content from SourceFile
     private String extractFileContent(SourceFile sourceFile) {
         Charset charset = sourceFile.getCharset();
@@ -1236,7 +810,7 @@ class Rewrite implements Callable<Integer> {
                     "Recipe validation error in " + failedValidation.getProperty() + ": "
                             + failedValidation.getMessage(),
                     failedValidation.getException()));
-                    
+
             if (failOnInvalidActiveRecipes) {
                 throw new IllegalStateException(
                         "Recipe validation errors detected as part of one or more activeRecipe(s). Please check error logs.");
@@ -1246,7 +820,7 @@ class Rewrite implements Callable<Integer> {
             }
         }
     }
-    
+
     // Parse all Java source files from configured paths
     private List<SourceFile> parseAllJavaSourceFiles(List<NamedStyles> styles, ExecutionContext ctx) {
         // Collect all Java sources from configured paths
@@ -1259,11 +833,11 @@ class Rewrite implements Callable<Integer> {
 
         // Prepare classpath for type resolution
         List<Path> classpath = prepareClasspath();
-        
+
         // Parse Java sources with the prepared classpath
         return parseJavaSources(javaSources, classpath, styles, ctx);
     }
-    
+
     // Prepare classpath for Java parsing
     private List<Path> prepareClasspath() {
         if (classpathElements != null && !classpathElements.isEmpty()) {
@@ -1276,58 +850,58 @@ class Rewrite implements Callable<Integer> {
             return emptyList();
         }
     }
-    
+
     // Parse resource files (YAML, Properties, XML, TOML)
     private void parseResourceFiles(List<SourceFile> sourceFiles, ExecutionContext ctx) {
         Set<Path> resources = discoverResourceFiles();
-        
+
         // Parse all resource types if any were found
         if (!resources.isEmpty()) {
             // Parse YAML
-            parseResourcesOfType(sourceFiles, resources, "YAML", 
-                path -> path.getFileName().toString().endsWith(".yml") || path.getFileName().toString().endsWith(".yaml"),
-                paths -> new YamlParser().parse(paths, baseDir(), ctx),
-                ctx);
-            
+            parseResourcesOfType(sourceFiles, resources, "YAML",
+                    path -> path.getFileName().toString().endsWith(".yml") || path.getFileName().toString().endsWith(".yaml"),
+                    paths -> new YamlParser().parse(paths, baseDir(), ctx),
+                    ctx);
+
             // Parse Properties
-            parseResourcesOfType(sourceFiles, resources, "properties", 
-                path -> path.getFileName().toString().endsWith(".properties"),
-                paths -> new PropertiesParser().parse(paths, baseDir(), ctx),
-                ctx);
-            
+            parseResourcesOfType(sourceFiles, resources, "properties",
+                    path -> path.getFileName().toString().endsWith(".properties"),
+                    paths -> new PropertiesParser().parse(paths, baseDir(), ctx),
+                    ctx);
+
             // Parse XML
-            parseResourcesOfType(sourceFiles, resources, "XML", 
-                path -> path.getFileName().toString().endsWith(".xml"),
-                paths -> new XmlParser().parse(paths, baseDir(), ctx),
-                ctx);
-            
+            parseResourcesOfType(sourceFiles, resources, "XML",
+                    path -> path.getFileName().toString().endsWith(".xml"),
+                    paths -> new XmlParser().parse(paths, baseDir(), ctx),
+                    ctx);
+
             // Parse TOML
-            parseResourcesOfType(sourceFiles, resources, "TOML", 
-                path -> path.getFileName().toString().endsWith(".toml"),
-                paths -> new TomlParser().parse(paths, baseDir(), ctx),
-                ctx);
+            parseResourcesOfType(sourceFiles, resources, "TOML",
+                    path -> path.getFileName().toString().endsWith(".toml"),
+                    paths -> new TomlParser().parse(paths, baseDir(), ctx),
+                    ctx);
         } else {
             logger.info("Skipping parsing of resource files as none were discovered or discovery was disabled.");
         }
     }
-    
+
     // Discover resource files from source paths
     private Set<Path> discoverResourceFiles() {
         if (!discoverResources) {
             logger.info("Skipping resource file discovery (--discover-resources=false).");
             return new HashSet<>();
         }
-        
+
         if (logger.isInfoEnabled()) {
             logger.info("Discovering resource files (yml, yaml, properties, xml, toml) in: {}",
                     javaSourcePaths.stream().collect(joining(", ")));
         }
-        
+
         Set<Path> resources = listResourceFiles(javaSourcePaths);
         logger.info("Found {} resource files.", resources.size());
         return resources;
     }
-    
+
     // Parse Maven POM file if available
     private void parseMavenPom(List<SourceFile> sourceFiles, ExecutionContext ctx) {
         logger.info("Parsing Maven POMs (if found)...");
@@ -1343,13 +917,13 @@ class Rewrite implements Callable<Integer> {
             logger.warn("Failed to parse Maven POM. Skipping. Error: {}", e.getMessage(), e);
         }
     }
-    
+
     // Execute recipes and filter results
-    private ResultsContainer executeRecipesAndGetResults(org.openrewrite.Recipe recipe, 
-                                                       List<SourceFile> sourceFiles, 
-                                                       ExecutionContext ctx) {
+    private ResultsContainer executeRecipesAndGetResults(org.openrewrite.Recipe recipe,
+                                                         List<SourceFile> sourceFiles,
+                                                         ExecutionContext ctx) {
         logger.info("Running recipe(s) on {} detected source files...", sourceFiles.size());
-        
+
         // Create source set and run recipe
         LargeSourceSet largeSourceSet = new InMemoryLargeSourceSet(sourceFiles);
         RecipeRun recipeRun = recipe.run(largeSourceSet, ctx);
@@ -1366,33 +940,33 @@ class Rewrite implements Callable<Integer> {
 
         return new ResultsContainer(baseDir(), filteredResults);
     }
-    
+
     // Process all types of results in a single method
     private void reportAllChanges(ResultsContainer results) {
         if (!results.isNotEmpty()) {
             return;
         }
-        
+
         reportGeneratedFiles(results);
         reportDeletedFiles(results);
         reportMovedFiles(results);
         reportRefactoredFiles(results);
     }
-    
+
     void performDryRun() {
         ResultsContainer results = listResults();
 
         if (!results.isNotEmpty()) {
             return;
         }
-        
-        
+
+
         // Report all changes that would be made
         reportAllChanges(results);
-        
+
         // Write patch file
         writePatchFile(results);
-        
+
         if (failOnDryRunResults) {
             throw new RewriteExecutionException("Applying recipes would make changes. See logs for more details.");
         }
@@ -1405,14 +979,14 @@ class Rewrite implements Callable<Integer> {
                 logger.warn("Generated new file {} by:",
                         result.getAfter().getSourcePath().normalize());
                 logRecipesThatMadeChanges(result);
-                
+
                 Path targetPath = results.getProjectRoot().resolve(result.getAfter().getSourcePath());
-                writeFileContent(targetPath, result.getAfter().getCharset(), 
+                writeFileContent(targetPath, result.getAfter().getCharset(),
                         extractFileContent(result.getAfter()));
             }
         }
     }
-    
+
     // Unified method to delete a file with error handling
     private void deleteFile(Path projectRoot, SourceFile sourceFile) throws IOException {
         Path originalLocation = projectRoot.resolve(sourceFile.getSourcePath()).normalize();
@@ -1423,7 +997,7 @@ class Rewrite implements Callable<Integer> {
                     String.format("Unable to delete file %s: %s", originalLocation.toAbsolutePath(), e.getMessage()), e);
         }
     }
-    
+
     // Process deleted files
     private void processDeletedFiles(ResultsContainer results) throws IOException {
         for (Result result : results.deleted) {
@@ -1435,42 +1009,42 @@ class Rewrite implements Callable<Integer> {
             }
         }
     }
-    
+
     // Unified method to create a file from a SourceFile
     private void createFile(Path projectRoot, SourceFile sourceFile) throws IOException {
         // Ensure directories exist
         Path targetLocation = projectRoot.resolve(sourceFile.getSourcePath());
         createParentDirectories(targetLocation);
-        
+
         // Write file content
-        writeFileContent(targetLocation, sourceFile.getCharset(), 
+        writeFileContent(targetLocation, sourceFile.getCharset(),
                 extractFileContent(sourceFile));
     }
-    
+
     // Process moved files
     private void processMovedFiles(ResultsContainer results) throws IOException {
         for (Result result : results.moved) {
             if (result.getAfter() == null || result.getBefore() == null) {
                 continue; // Skip invalid results
             }
-            
+
             logger.warn("File has been moved from {} to {} by:",
                     result.getBefore().getSourcePath().normalize(),
                     result.getAfter().getSourcePath().normalize());
             logRecipesThatMadeChanges(result);
-            
+
             deleteFile(results.getProjectRoot(), result.getBefore());
             createFile(results.getProjectRoot(), result.getAfter());
         }
     }
-    
+
     private void createParentDirectories(Path filePath) {
         File parentDir = filePath.toFile().getParentFile();
         if (!parentDir.exists() && !parentDir.mkdirs()) {
             logger.warn("Failed to create directory: {}", parentDir);
         }
     }
-    
+
     // Process files refactored in place
     private void processRefactoredFiles(ResultsContainer results) throws IOException {
         for (Result result : results.refactoredInPlace) {
@@ -1478,9 +1052,9 @@ class Rewrite implements Callable<Integer> {
                 logger.warn("Changes have been made to {} by:",
                         result.getBefore().getSourcePath().normalize());
                 logRecipesThatMadeChanges(result);
-                
+
                 Path targetPath = results.getProjectRoot().resolve(result.getBefore().getSourcePath());
-                writeFileContent(targetPath, result.getAfter().getCharset(), 
+                writeFileContent(targetPath, result.getAfter().getCharset(),
                         extractFileContent(result.getAfter()));
             }
         }
@@ -1491,14 +1065,14 @@ class Rewrite implements Callable<Integer> {
         if (!results.isNotEmpty()) {
             return;
         }
-        
+
         logger.warn("Please review and commit the results.");
         processGeneratedFiles(results);
         processDeletedFiles(results);
         processMovedFiles(results);
         processRefactoredFiles(results);
     }
-    
+
     void performRun() {
         ResultsContainer results = listResults();
         try {
@@ -1572,150 +1146,142 @@ class Rewrite implements Callable<Integer> {
         }
 
         private void writeDiscovery(Collection<RecipeDescriptor> availableRecipeDescriptors,
-                Collection<RecipeDescriptor> activeRecipeDescriptors, Collection<NamedStyles> availableStyles) {
-            
+                                    Collection<RecipeDescriptor> activeRecipeDescriptors, Collection<NamedStyles> availableStyles) {
+
             writeAvailableRecipes(availableRecipeDescriptors);
             writeAvailableStyles(availableStyles);
             writeActiveStyles();
             writeActiveRecipes(activeRecipeDescriptors);
             writeSummary(availableRecipeDescriptors, availableStyles, activeRecipeDescriptors);
         }
-        
+
         private void writeAvailableRecipes(Collection<RecipeDescriptor> availableRecipeDescriptors) {
-            Rewrite.getInstance().printColored("Available Recipes:", "cyan");
+            rewrite.printColored("Available Recipes", LoggingUtils.STYLE_HEADING);
+            System.out.println();
             for (RecipeDescriptor recipeDescriptor : availableRecipeDescriptors) {
                 writeRecipeDescriptor(recipeDescriptor, detail, 0, 1);
             }
         }
-        
+
         private void writeAvailableStyles(Collection<NamedStyles> availableStyles) {
-            logger.info("");
-            Rewrite.getInstance().printColored("Available Styles:", "cyan");
+            System.out.println();
+            rewrite.printColored("Available Styles", LoggingUtils.STYLE_HEADING);
+            System.out.println();
             for (NamedStyles style : availableStyles) {
-                Rewrite.getInstance().printColored("    " + style.getName(), "blue");
+                rewrite.printIndented(style.getName(), LoggingUtils.STYLE_RECIPE, 1);
             }
         }
-        
+
         private void writeActiveStyles() {
-            logger.info("");
-            Rewrite.getInstance().printColored("Active Styles:", "green");
+            System.out.println();
+            rewrite.printColored("Active Styles", LoggingUtils.STYLE_HEADING);
+            System.out.println();
             for (String activeStyle : rewrite.activeStyles) {
-                Rewrite.getInstance().printColored("    " + activeStyle, "yellow");
+                rewrite.printIndented(activeStyle, LoggingUtils.STYLE_RECIPE_ACTIVE, 1);
             }
         }
-        
+
         private void writeActiveRecipes(Collection<RecipeDescriptor> activeRecipeDescriptors) {
-            logger.info("");
-            Rewrite.getInstance().printColored("Active Recipes:", "green");
-            for (RecipeDescriptor recipeDescriptor : activeRecipeDescriptors) {
-                writeRecipeDescriptor(recipeDescriptor, detail, 0, 1);
+            System.out.println();
+            rewrite.printColored("Active Recipes", LoggingUtils.STYLE_HEADING);
+            System.out.println();
+            for (RecipeDescriptor rd : activeRecipeDescriptors) {
+                writeRecipeDescriptor(rd, detail, 0, 1);
             }
         }
-        
-        private void writeSummary(Collection<RecipeDescriptor> availableRecipeDescriptors, 
-                                Collection<NamedStyles> availableStyles,
-                                Collection<RecipeDescriptor> activeRecipeDescriptors) {
-            logger.info("");
-            Rewrite.getInstance().printColored(
-                String.format("Found %d available recipes and %d available styles.",
-                    availableRecipeDescriptors.size(), availableStyles.size()), 
-                "yellow");
-            Rewrite.getInstance().printColored(
-                String.format("Configured with %d active recipes and %d active styles.",
-                    activeRecipeDescriptors.size(), rewrite.activeStyles.size()),
-                "yellow");
+
+        private void writeSummary(Collection<RecipeDescriptor> availableRecipeDescriptors,
+                                  Collection<NamedStyles> availableStyles,
+                                  Collection<RecipeDescriptor> activeRecipeDescriptors) {
+            System.out.println();
+            rewrite.printColored("Summary", LoggingUtils.STYLE_HEADING);
+            rewrite.printIndented(
+                    String.format("Found %d available recipes and %d available styles.",
+                            availableRecipeDescriptors.size(), availableStyles.size()),
+                    LoggingUtils.STYLE_SUCCESS, 1);
+            rewrite.printIndented(
+                    String.format("Configured with %d active recipes and %d active styles.",
+                            activeRecipeDescriptors.size(), rewrite.activeStyles.size()),
+                    LoggingUtils.STYLE_HIGHLIGHT, 1);
         }
-        
+
         private void writeRecipeDescriptor(RecipeDescriptor rd, boolean verbose, int currentRecursionLevel,
-                int indentLevel) {
+                                           int indentLevel) {
             // Early return if recursion level is exceeded
             if (currentRecursionLevel > recursion) {
                 return;
             }
             
-            String indent = StringUtils.repeat(INDENT_SPACES, indentLevel * 4);
+            StringBuilder recipeInfo = new StringBuilder(LoggingUtils.formatJavaName(rd.getName(), rewrite.noColor));
+            
+            // Add a check mark to indicate this is the active recipe
+            if (rewrite.activeRecipes.contains(rd.getName())) {
+                recipeInfo.append(" ").append(LoggingUtils.SYMBOL_SUCCESS);
+            }
+            
+            // Use active recipe style if it's active, otherwise regular recipe style
+            String style = rewrite.activeRecipes.contains(rd.getName()) ? LoggingUtils.STYLE_RECIPE_ACTIVE : LoggingUtils.STYLE_RECIPE;
+            rewrite.printIndented(recipeInfo.toString(), style, indentLevel);
             
             if (verbose) {
-                writeVerboseRecipeInfo(rd, indent);
-            } else {
-                String message = indent + rd.getName();
-                if (rewrite.activeRecipes.contains(rd.getName())) {
-                    Rewrite.getInstance().printColored(message, "green");
-                } else {
-                    Rewrite.getInstance().printColored(message, "blue");
-                }
+                writeVerboseRecipeInfo(rd, indentLevel + 1);
+            }
+            
+            writeRecipeListIfNeeded(rd, verbose, currentRecursionLevel, indentLevel + 1);
+        }
+
+        private void writeVerboseRecipeInfo(RecipeDescriptor rd, int indentLevel) {
+            // Display name as heading at current indent level
+            rewrite.printIndented(rd.getDisplayName(), LoggingUtils.STYLE_HEADING, indentLevel);
+
+            // Recipe name with active indicator if applicable
+            String style = rewrite.activeRecipes.contains(rd.getName()) ? LoggingUtils.STYLE_RECIPE_ACTIVE : LoggingUtils.STYLE_RECIPE;
+            rewrite.printIndented(rd.getName(), style, indentLevel + 1);
+
+            // Description as plain text
+            String description = rd.getDescription();
+            if (description != null && !description.isEmpty()) {
+                rewrite.printIndented(description, LoggingUtils.STYLE_INFO, indentLevel + 1);
             }
 
-            writeRecipeListIfNeeded(rd, verbose, currentRecursionLevel, indentLevel, indent);
-        }
-        
-        private void writeVerboseRecipeInfo(RecipeDescriptor rd, String indent) {
-            // Display name in bold blue
-            Rewrite.getInstance().printColored(indent + rd.getDisplayName(), "blue");
-            
-            // Recipe name in cyan if active, normal if not
-            String nameMessage = indent + "    " + rd.getName();
-            if (rewrite.activeRecipes.contains(rd.getName())) {
-                Rewrite.getInstance().printColored(nameMessage, "green");
-            } else {
-                Rewrite.getInstance().printColored(nameMessage, "cyan");
-            }
-            
-            // Description in normal color
-            String description = rd.getDescription();
-            if (description != null && !description.isEmpty()) {
-                Rewrite.getInstance().printColored(indent + "    " + description, "yellow");
-            }
-            
-            writeOptionsIfPresent(rd, indent);
-            
+            writeOptionsIfPresent(rd, indentLevel);
+
             // Add blank line after verbose output
-            logger.info("");
+            System.out.println();
         }
-        
-        private void writeDescriptionIfPresent(RecipeDescriptor rd, String indent) {
-            String description = rd.getDescription();
-            if (description != null && !description.isEmpty()) {
-                Rewrite.getInstance().printColored(indent + "    " + description, "blue");
-            }
-        }
-        
-        private void writeOptionsIfPresent(RecipeDescriptor rd, String indent) {
+
+        private void writeOptionsIfPresent(RecipeDescriptor rd, int indentLevel) {
             if (rd.getOptions().isEmpty()) {
                 return;
             }
-            
-            Rewrite.getInstance().printColored(indent + "options:", "yellow");
+
+            rewrite.printIndented("Options:", LoggingUtils.STYLE_WARNING, indentLevel + 1);
             for (OptionDescriptor od : rd.getOptions()) {
-                writeOptionInfo(od, indent);
+                writeOptionInfo(od, indentLevel + 2);
             }
         }
-        
-        private void writeOptionInfo(OptionDescriptor od, String indent) {
-            String required = od.isRequired() ? "!" : "";
-            Rewrite.getInstance().printColored(
-                String.format("%s    %s: %s%s", 
-                    indent, 
-                    od.getName(), 
-                    od.getType(), 
-                    required),
-                od.isRequired() ? "red" : "blue"
-            );
-                    
+
+        private void writeOptionInfo(OptionDescriptor od, int indentLevel) {
+            String required = od.isRequired() ? " (required)" : "";
+            String optionText = String.format("%s: %s%s", od.getName(), od.getType(), required);
+            String style = od.isRequired() ? LoggingUtils.STYLE_ERROR : LoggingUtils.STYLE_RECIPE;
+
+            rewrite.printIndented(optionText, style, indentLevel);
+
             if (od.getDescription() != null && !od.getDescription().isEmpty()) {
-                logger.info("{}        {}", indent, od.getDescription());
+                rewrite.printIndented(od.getDescription(), LoggingUtils.STYLE_INFO, indentLevel + 1);
             }
         }
-        
+
         private void writeRecipeListIfNeeded(RecipeDescriptor rd, boolean verbose, int currentRecursionLevel,
-                                          int indentLevel, String indent) {
+                                             int indentLevel) {
             boolean hasRecipeList = !rd.getRecipeList().isEmpty();
             boolean withinRecursionLimit = (currentRecursionLevel + 1 <= recursion);
-            
+
             if (hasRecipeList && withinRecursionLimit) {
-                Rewrite.getInstance().printColored(indent + "recipeList:", "yellow");
+                rewrite.printIndented("Includes:", LoggingUtils.STYLE_WARNING, indentLevel + 1);
                 for (RecipeDescriptor r : rd.getRecipeList()) {
-                    writeRecipeDescriptor(r, verbose, currentRecursionLevel + 1, indentLevel + 1);
+                    writeRecipeDescriptor(r, verbose, currentRecursionLevel + 1, indentLevel + 2);
                 }
             }
         }
@@ -1734,7 +1300,7 @@ class Rewrite implements Callable<Integer> {
         public RewriteExecutionException(String message) {
             super(message);
         }
-        
+
         public RewriteExecutionException(String message, Throwable cause) {
             super(message, cause);
         }
