@@ -1110,27 +1110,45 @@ class Rewrite implements Callable<Integer> {
          * The name of a specific recipe to show details for. For example:<br>
          * {@code rewrite discover --detail --recipe=org.openrewrite.java.format.AutoFormat}
          */
-        @Option(names = "recipe")
+        @CommandLine.Option(names = "recipe")
         String recipe;
+
+        /**
+         * Filter recipes by type/category (matches against package name). For example:<br>
+         * {@code rewrite discover --type=java} will show only Java recipes.
+         */
+        @CommandLine.Option(names = {"--type", "--category"}, description = "Filter recipes by category (java, maven, yaml, etc.)")
+        String typeFilter;
 
         /**
          * Whether to display recipe details such as displayName, description, and
          * configuration options.
          */
-        @Option(names = "detail", defaultValue = "false")
+        @CommandLine.Option(names = "detail", defaultValue = "false")
         boolean detail;
 
         /**
          * The maximum level of recursion to display recipe descriptors under
          * recipeList.
          */
-        @Option(names = "recursion", defaultValue = "0")
+        @CommandLine.Option(names = "recursion", defaultValue = "0")
         int recursion;
 
         @Override
         public Integer call() {
             Environment env = rewrite.environment();
             Collection<RecipeDescriptor> availableRecipeDescriptors = env.listRecipeDescriptors();
+            
+            // Apply type/category filter if specified
+            if (typeFilter != null && !typeFilter.isEmpty()) {
+                final String filter = typeFilter.toLowerCase();
+                availableRecipeDescriptors = availableRecipeDescriptors.stream()
+                    .filter(rd -> categoryMatches(rd.getName(), filter))
+                    .collect(java.util.stream.Collectors.toList());
+                    
+                System.out.println("\nFiltering by category: " + LoggingUtils.formatJavaName("org.openrewrite." + filter, rewrite.noColor));
+            }
+            
             if (recipe != null) {
                 RecipeDescriptor rd = getRecipeDescriptor(recipe, availableRecipeDescriptors);
                 writeRecipeDescriptor(rd, detail, 0, 0);
@@ -1144,6 +1162,28 @@ class Rewrite implements Callable<Integer> {
             }
             return 0;
         }
+        
+        /**
+         * Check if a recipe name matches the specified category filter
+         */
+        private boolean categoryMatches(String recipeName, String filter) {
+            // Special case for "all" to show all recipes
+            if ("all".equalsIgnoreCase(filter)) {
+                return true;
+            }
+            
+            // Extract category from recipe name based on package structure
+            // E.g. org.openrewrite.java.format.AutoFormat -> "java"
+            String[] parts = recipeName.split("\\.");
+            
+            // Most recipes follow the pattern org.openrewrite.CATEGORY...
+            if (parts.length >= 3 && "openrewrite".equals(parts[1])) {
+                return parts[2].toLowerCase().equals(filter);
+            }
+            
+            // Special case handling for specific keywords
+            return recipeName.toLowerCase().contains(filter);
+        }
 
         private void writeDiscovery(Collection<RecipeDescriptor> availableRecipeDescriptors,
                                     Collection<RecipeDescriptor> activeRecipeDescriptors, Collection<NamedStyles> availableStyles) {
@@ -1152,9 +1192,45 @@ class Rewrite implements Callable<Integer> {
             writeAvailableStyles(availableStyles);
             writeActiveStyles();
             writeActiveRecipes(activeRecipeDescriptors);
+            writeCategories(availableRecipeDescriptors);
             writeSummary(availableRecipeDescriptors, availableStyles, activeRecipeDescriptors);
         }
-
+        
+        /**
+         * Write out available categories extracted from recipe names
+         */
+        private void writeCategories(Collection<RecipeDescriptor> availableRecipeDescriptors) {
+            System.out.println();
+            rewrite.printColored("Available Categories", LoggingUtils.STYLE_HEADING);
+            System.out.println();
+            
+            // Extract all categories from recipe names
+            java.util.Set<String> categories = new java.util.TreeSet<>();
+            for (RecipeDescriptor rd : availableRecipeDescriptors) {
+                String[] parts = rd.getName().split("\\.");
+                if (parts.length >= 3 && "openrewrite".equals(parts[1])) {
+                    categories.add(parts[2]);
+                }
+            }
+            
+            // Print sorted categories with counts
+            for (String category : categories) {
+                // Count recipes in this category
+                long count = availableRecipeDescriptors.stream()
+                    .filter(rd -> categoryMatches(rd.getName(), category))
+                    .count();
+                
+                String formattedCategory = LoggingUtils.formatJavaName("org.openrewrite." + category, rewrite.noColor);
+                rewrite.printIndented(formattedCategory + " (" + count + " recipes)", LoggingUtils.STYLE_RECIPE, 1);
+            }
+            
+            // Print help text for filtering if not already filtered
+            if (typeFilter == null) {
+                System.out.println();
+                rewrite.printIndented("Use --type=<category> to filter recipes by category", LoggingUtils.STYLE_HIGHLIGHT, 1);
+            }
+        }
+        
         private void writeAvailableRecipes(Collection<RecipeDescriptor> availableRecipeDescriptors) {
             rewrite.printColored("Available Recipes", LoggingUtils.STYLE_HEADING);
             System.out.println();
