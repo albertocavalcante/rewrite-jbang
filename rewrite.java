@@ -1244,7 +1244,8 @@ class Rewrite implements Callable<Integer> {
             rewrite.printColored("Available Styles", LoggingUtils.STYLE_HEADING);
             System.out.println();
             for (NamedStyles style : availableStyles) {
-                rewrite.printIndented(style.getName(), LoggingUtils.STYLE_RECIPE, 1);
+                String formattedName = LoggingUtils.formatJavaName(style.getName(), rewrite.noColor);
+                rewrite.printIndented(formattedName, LoggingUtils.STYLE_RECIPE, 1);
             }
         }
 
@@ -1253,7 +1254,8 @@ class Rewrite implements Callable<Integer> {
             rewrite.printColored("Active Styles", LoggingUtils.STYLE_HEADING);
             System.out.println();
             for (String activeStyle : rewrite.activeStyles) {
-                rewrite.printIndented(activeStyle, LoggingUtils.STYLE_RECIPE_ACTIVE, 1);
+                String formattedName = LoggingUtils.formatJavaName(activeStyle, rewrite.noColor);
+                rewrite.printIndented(formattedName, LoggingUtils.STYLE_RECIPE_ACTIVE, 1);
             }
         }
 
