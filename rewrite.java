@@ -2,8 +2,10 @@
 //JAVA 21+
 //COMPILE_OPTIONS -Xlint:deprecation -Xlint:unchecked -proc:none
 
+//REPOS mavencentral
 //DEPS info.picocli:picocli:4.7.6
 //DEPS org.slf4j:slf4j-simple:2.0.17
+//DEPS org.fusesource.jansi:jansi:2.4.1
 //DEPS org.apache.maven:maven-core:3.9.9
 
 //DEPS org.openrewrite:rewrite-bom:8.49.0@pom
@@ -75,6 +77,7 @@ import org.slf4j.LoggerFactory;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
+import org.fusesource.jansi.AnsiConsole;
 
 @Command(name = "rewrite", mixinStandardHelpOptions = true, version = "rewrite 0.2", description = "rewrite made with jbang", subcommands = Rewrite.RewriteDiscover.class)
 class Rewrite implements Callable<Integer> {
@@ -142,6 +145,10 @@ class Rewrite implements Callable<Integer> {
     @Option(names = "--recipe-change-log-level", defaultValue = "WARN", description = "Log level for reporting recipe changes (DEBUG, INFO, WARN, ERROR).")
     LogLevel recipeChangeLogLevel = LogLevel.WARN;
 
+    // Add a flag to disable ANSI colors
+    @Option(names = { "--no-color" }, description = "Disable colorized output", defaultValue = "false")
+    boolean noColor;
+
     public static void main(String... args) {
         // Configure slf4j-simple to format output similar to previous implementation
         System.setProperty("org.slf4j.simpleLogger.showThreadName", "false");
@@ -152,8 +159,18 @@ class Rewrite implements Callable<Integer> {
         // Suppress warnings from ReloadableJava11Parser
         System.setProperty("org.slf4j.simpleLogger.log.org.openrewrite.java.isolated.ReloadableJava11Parser", "ERROR");
 
-        int exitCode = new CommandLine(new Rewrite()).execute(args);
-        System.exit(exitCode);
+        // Install Jansi for cross-platform ANSI color support
+        AnsiConsole.systemInstall();
+        try {
+            // Execute the command 
+            CommandLine commandLine = new CommandLine(new Rewrite())
+                    .setColorScheme(CommandLine.Help.defaultColorScheme(CommandLine.Help.Ansi.AUTO));
+            int exitCode = commandLine.execute(args);
+            System.exit(exitCode);
+        } finally {
+            // Clean up Jansi when done
+            AnsiConsole.systemUninstall();
+        }
     }
 
     Environment environment() {
@@ -561,30 +578,20 @@ class Rewrite implements Callable<Integer> {
         return executeRecipesAndGetResults(recipe, sourceFiles, ctx);
     }
 
-    // log method to mimic plugin behavior
-    protected void log(LogLevel logLevel, CharSequence content) {
-        switch (logLevel) {
-            case DEBUG -> {
-                // Map DEBUG to INFO for now
-                if (logger.isInfoEnabled()) {
-                    logger.info(content.toString());
-                }
-            }
-            case INFO -> {
-                if (logger.isInfoEnabled()) {
-                    logger.info(content.toString());
-                }
-            }
-            case WARN -> {
-                if (logger.isWarnEnabled()) {
-                    logger.warn(content.toString());
-                }
-            }
-            case ERROR -> {
-                if (logger.isErrorEnabled()) {
-                    logger.error(content.toString());
-                }
-            }
+    // Direct console output with colors
+    private void printColored(String message, String color) {
+        if (noColor) {
+            System.out.println(message);
+        } else {
+            String template = switch(color) {
+                case "red" -> "@|red %s|@";
+                case "green" -> "@|green %s|@";
+                case "yellow" -> "@|yellow %s|@";
+                case "blue" -> "@|blue %s|@";
+                case "cyan" -> "@|cyan %s|@";
+                default -> "%s";
+            };
+            System.out.println(CommandLine.Help.Ansi.AUTO.string(String.format(template, message)));
         }
     }
 
@@ -605,7 +612,12 @@ class Rewrite implements Callable<Integer> {
     // Source:
     // https://sourcegraph.com/github.com/openrewrite/rewrite-maven-plugin@v5.40.0/-/blob/src/main/java/org/openrewrite/maven/AbstractRewriteBaseRunMojo.java?L471-489
     private void logRecipe(RecipeDescriptor rd, String prefix) {
-        log(recipeChangeLogLevel, buildRecipeLogMessage(rd, prefix));
+        String message = buildRecipeLogMessage(rd, prefix);
+        if (!noColor) {
+            printColored(message, "blue");
+        } else {
+            log(recipeChangeLogLevel, message);
+        }
         logChildRecipes(rd, prefix);
     }
     
@@ -641,7 +653,7 @@ class Rewrite implements Callable<Integer> {
         return null;
     }
     
-    // Extract child recipe logging
+    // Extract child recipe logging and use colors
     private void logChildRecipes(RecipeDescriptor rd, String prefix) {
         if (rd.getRecipeList().isEmpty()) {
             return;
@@ -649,46 +661,86 @@ class Rewrite implements Callable<Integer> {
         
         String childPrefix = prefix + INDENT_SPACES;
         for (RecipeDescriptor childRecipe : rd.getRecipeList()) {
-            logRecipe(childRecipe, childPrefix);
+            String message = buildRecipeLogMessage(childRecipe, childPrefix);
+            
+            if (!noColor) {
+                printColored(message, "blue");
+            } else {
+                log(recipeChangeLogLevel, message);
+            }
+            
+            logChildRecipes(childRecipe, childPrefix);
+        }
+    }
+    
+    // log method to mimic plugin behavior
+    protected void log(LogLevel logLevel, CharSequence content) {
+        switch (logLevel) {
+            case DEBUG -> {
+                // Map DEBUG to INFO for now
+                if (logger.isInfoEnabled()) {
+                    logger.info(content.toString());
+                }
+            }
+            case INFO -> {
+                if (logger.isInfoEnabled()) {
+                    logger.info(content.toString());
+                }
+            }
+            case WARN -> {
+                if (logger.isWarnEnabled()) {
+                    logger.warn(content.toString());
+                }
+            }
+            case ERROR -> {
+                if (logger.isErrorEnabled()) {
+                    logger.error(content.toString());
+                }
+            }
         }
     }
 
-    // Extract method to report generated files
+    // Colorize the generated file reports
     private void reportGeneratedFiles(ResultsContainer results) {
         for (Result result : results.generated) {
             if (result.getAfter() != null) {
-                logger.warn("These recipes would generate new file {}:", result.getAfter().getSourcePath());
+                String message = "These recipes would generate new file " + result.getAfter().getSourcePath() + ":";
+                printColored(message, "green");
                 logRecipesThatMadeChanges(result);
             }
         }
     }
     
-    // Extract method to report deleted files
+    // Colorize the deleted file reports
     private void reportDeletedFiles(ResultsContainer results) {
         for (Result result : results.deleted) {
             if (result.getBefore() != null) {
-                logger.warn("These recipes would delete file {}:", result.getBefore().getSourcePath());
+                String message = "These recipes would delete file " + result.getBefore().getSourcePath() + ":";
+                printColored(message, "red");
                 logRecipesThatMadeChanges(result);
             }
         }
     }
     
-    // Extract method to report moved files
+    // Colorize the moved file reports
     private void reportMovedFiles(ResultsContainer results) {
         for (Result result : results.moved) {
             if (result.getBefore() != null && result.getAfter() != null) {
-                logger.warn("These recipes would move file from {} to {}:",
-                        result.getBefore().getSourcePath(), result.getAfter().getSourcePath());
+                String message = "These recipes would move file from " + 
+                        result.getBefore().getSourcePath() + " to " + 
+                        result.getAfter().getSourcePath() + ":";
+                printColored(message, "cyan");
                 logRecipesThatMadeChanges(result);
             }
         }
     }
     
-    // Extract method to report refactored files
+    // Colorize the refactored file reports
     private void reportRefactoredFiles(ResultsContainer results) {
         for (Result result : results.refactoredInPlace) {
             if (result.getBefore() != null) {
-                logger.warn("These recipes would make changes to {}:", result.getBefore().getSourcePath());
+                String message = "These recipes would make changes to " + result.getBefore().getSourcePath() + ":";
+                printColored(message, "yellow");
                 logRecipesThatMadeChanges(result);
             }
         }
@@ -716,8 +768,8 @@ class Rewrite implements Callable<Integer> {
             throw new RewriteExecutionException("Unable to generate rewrite result file", e);
         }
         
-        logger.warn("Report available:");
-        logger.warn("    {}", patchFile.normalize());
+        printColored("Report available:", "yellow");
+        printColored("    " + patchFile.normalize(), "cyan");
     }
     
     // Helper method to get combined stream of all results
@@ -1102,7 +1154,7 @@ class Rewrite implements Callable<Integer> {
         }
         
         private void writeAvailableRecipes(Collection<RecipeDescriptor> availableRecipeDescriptors) {
-            logger.info("Available Recipes:");
+            Rewrite.getInstance().printColored("Available Recipes:", "cyan");
             for (RecipeDescriptor recipeDescriptor : availableRecipeDescriptors) {
                 writeRecipeDescriptor(recipeDescriptor, detail, 0, 1);
             }
@@ -1110,23 +1162,23 @@ class Rewrite implements Callable<Integer> {
         
         private void writeAvailableStyles(Collection<NamedStyles> availableStyles) {
             logger.info("");
-            logger.info("Available Styles:");
+            Rewrite.getInstance().printColored("Available Styles:", "cyan");
             for (NamedStyles style : availableStyles) {
-                logger.info("    {}", style.getName());
+                Rewrite.getInstance().printColored("    " + style.getName(), "blue");
             }
         }
         
         private void writeActiveStyles() {
             logger.info("");
-            logger.info("Active Styles:");
+            Rewrite.getInstance().printColored("Active Styles:", "green");
             for (String activeStyle : rewrite.activeStyles) {
-                logger.info("    {}", activeStyle);
+                Rewrite.getInstance().printColored("    " + activeStyle, "yellow");
             }
         }
         
         private void writeActiveRecipes(Collection<RecipeDescriptor> activeRecipeDescriptors) {
             logger.info("");
-            logger.info("Active Recipes:");
+            Rewrite.getInstance().printColored("Active Recipes:", "green");
             for (RecipeDescriptor recipeDescriptor : activeRecipeDescriptors) {
                 writeRecipeDescriptor(recipeDescriptor, detail, 0, 1);
             }
@@ -1136,10 +1188,14 @@ class Rewrite implements Callable<Integer> {
                                 Collection<NamedStyles> availableStyles,
                                 Collection<RecipeDescriptor> activeRecipeDescriptors) {
             logger.info("");
-            logger.info("Found {} available recipes and {} available styles.",
-                    availableRecipeDescriptors.size(), availableStyles.size());
-            logger.info("Configured with {} active recipes and {} active styles.",
-                    activeRecipeDescriptors.size(), rewrite.activeStyles.size());
+            Rewrite.getInstance().printColored(
+                String.format("Found %d available recipes and %d available styles.",
+                    availableRecipeDescriptors.size(), availableStyles.size()), 
+                "yellow");
+            Rewrite.getInstance().printColored(
+                String.format("Configured with %d active recipes and %d active styles.",
+                    activeRecipeDescriptors.size(), rewrite.activeStyles.size()),
+                "yellow");
         }
         
         private void writeRecipeDescriptor(RecipeDescriptor rd, boolean verbose, int currentRecursionLevel,
@@ -1154,17 +1210,35 @@ class Rewrite implements Callable<Integer> {
             if (verbose) {
                 writeVerboseRecipeInfo(rd, indent);
             } else {
-                logger.info("{}{}", indent, rd.getName());
+                String message = indent + rd.getName();
+                if (rewrite.activeRecipes.contains(rd.getName())) {
+                    Rewrite.getInstance().printColored(message, "green");
+                } else {
+                    Rewrite.getInstance().printColored(message, "blue");
+                }
             }
 
             writeRecipeListIfNeeded(rd, verbose, currentRecursionLevel, indentLevel, indent);
         }
         
         private void writeVerboseRecipeInfo(RecipeDescriptor rd, String indent) {
-            logger.info("{}{}", indent, rd.getDisplayName());
-            logger.info("{}    {}", indent, rd.getName());
+            // Display name in bold blue
+            Rewrite.getInstance().printColored(indent + rd.getDisplayName(), "blue");
             
-            writeDescriptionIfPresent(rd, indent);
+            // Recipe name in cyan if active, normal if not
+            String nameMessage = indent + "    " + rd.getName();
+            if (rewrite.activeRecipes.contains(rd.getName())) {
+                Rewrite.getInstance().printColored(nameMessage, "green");
+            } else {
+                Rewrite.getInstance().printColored(nameMessage, "cyan");
+            }
+            
+            // Description in normal color
+            String description = rd.getDescription();
+            if (description != null && !description.isEmpty()) {
+                Rewrite.getInstance().printColored(indent + "    " + description, "yellow");
+            }
+            
             writeOptionsIfPresent(rd, indent);
             
             // Add blank line after verbose output
@@ -1174,7 +1248,7 @@ class Rewrite implements Callable<Integer> {
         private void writeDescriptionIfPresent(RecipeDescriptor rd, String indent) {
             String description = rd.getDescription();
             if (description != null && !description.isEmpty()) {
-                logger.info("{}    {}", indent, description);
+                Rewrite.getInstance().printColored(indent + "    " + description, "blue");
             }
         }
         
@@ -1183,18 +1257,22 @@ class Rewrite implements Callable<Integer> {
                 return;
             }
             
-            logger.info("{}options: ", indent);
+            Rewrite.getInstance().printColored(indent + "options:", "yellow");
             for (OptionDescriptor od : rd.getOptions()) {
                 writeOptionInfo(od, indent);
             }
         }
         
         private void writeOptionInfo(OptionDescriptor od, String indent) {
-            logger.info("{}    {}: {}{}",
-                    indent,
-                    od.getName(),
-                    od.getType(),
-                    od.isRequired() ? "!" : "");
+            String required = od.isRequired() ? "!" : "";
+            Rewrite.getInstance().printColored(
+                String.format("%s    %s: %s%s", 
+                    indent, 
+                    od.getName(), 
+                    od.getType(), 
+                    required),
+                od.isRequired() ? "red" : "blue"
+            );
                     
             if (od.getDescription() != null && !od.getDescription().isEmpty()) {
                 logger.info("{}        {}", indent, od.getDescription());
@@ -1207,7 +1285,7 @@ class Rewrite implements Callable<Integer> {
             boolean withinRecursionLimit = (currentRecursionLevel + 1 <= recursion);
             
             if (hasRecipeList && withinRecursionLimit) {
-                logger.info("{}recipeList:", indent);
+                Rewrite.getInstance().printColored(indent + "recipeList:", "yellow");
                 for (RecipeDescriptor r : rd.getRecipeList()) {
                     writeRecipeDescriptor(r, verbose, currentRecursionLevel + 1, indentLevel + 1);
                 }
