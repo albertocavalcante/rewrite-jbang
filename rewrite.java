@@ -1,5 +1,5 @@
 ///usr/bin/env jbang "$0" "$@" ; exit $?
-//COMPILE_OPTIONS -Xlint:deprecation -Xlint:unchecked
+//COMPILE_OPTIONS -Xlint:deprecation -Xlint:unchecked -proc:none
 
 //DEPS info.picocli:picocli:4.7.6
 //DEPS org.slf4j:slf4j-simple:2.0.17
