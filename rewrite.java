@@ -79,9 +79,7 @@ import picocli.CommandLine.Option;
 @Command(name = "rewrite", mixinStandardHelpOptions = true, version = "rewrite 0.2", description = "rewrite made with jbang", subcommands = Rewrite.RewriteDiscover.class)
 class Rewrite implements Callable<Integer> {
 
-    private static final String RECIPE_NOT_FOUND_EXCEPTION_MSG = "Could not find recipe '%s' among available recipes";
     private static final String INDENT_SPACES = "    ";
-    private static final String FALSE_VALUE = "false";
 
     // Singleton instance for static method access
     private static final Rewrite INSTANCE = new Rewrite();
@@ -490,7 +488,7 @@ class Rewrite implements Callable<Integer> {
                     .toList();
             if (!matchingRecipeDescriptors.isEmpty()) {
                 var names = matchingRecipeDescriptors.stream()
-                        .map(rd -> rd.getName())
+                        .map(RecipeDescriptor::getName)
                         .collect(java.util.stream.Collectors.toSet());
                 logger.info("Activating recipes (fallback): {}", names);
                 return env.activateRecipes(names);
@@ -664,27 +662,27 @@ class Rewrite implements Callable<Integer> {
     // log method to mimic plugin behavior
     protected void log(LogLevel logLevel, CharSequence content) {
         switch (logLevel) {
-            case DEBUG:
+            case DEBUG -> {
                 // Map DEBUG to INFO for now
                 if (logger.isInfoEnabled()) {
                     logger.info(content.toString());
                 }
-                break;
-            case INFO:
+            }
+            case INFO -> {
                 if (logger.isInfoEnabled()) {
                     logger.info(content.toString());
                 }
-                break;
-            case WARN:
+            }
+            case WARN -> {
                 if (logger.isWarnEnabled()) {
                     logger.warn(content.toString());
                 }
-                break;
-            case ERROR:
+            }
+            case ERROR -> {
                 if (logger.isErrorEnabled()) {
                     logger.error(content.toString());
                 }
-                break;
+            }
         }
     }
 
