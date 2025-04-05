@@ -1016,36 +1016,55 @@ class Rewrite implements Callable<Integer> {
 
         private void writeDiscovery(Collection<RecipeDescriptor> availableRecipeDescriptors,
                 Collection<RecipeDescriptor> activeRecipeDescriptors, Collection<NamedStyles> availableStyles) {
+            
+            writeAvailableRecipes(availableRecipeDescriptors);
+            writeAvailableStyles(availableStyles);
+            writeActiveStyles();
+            writeActiveRecipes(activeRecipeDescriptors);
+            writeSummary(availableRecipeDescriptors, availableStyles, activeRecipeDescriptors);
+        }
+        
+        private void writeAvailableRecipes(Collection<RecipeDescriptor> availableRecipeDescriptors) {
             logger.info("Available Recipes:");
             for (RecipeDescriptor recipeDescriptor : availableRecipeDescriptors) {
                 writeRecipeDescriptor(recipeDescriptor, detail, 0, 1);
             }
-
+        }
+        
+        private void writeAvailableStyles(Collection<NamedStyles> availableStyles) {
             logger.info("");
             logger.info("Available Styles:");
             for (NamedStyles style : availableStyles) {
                 logger.info("    {}", style.getName());
             }
-
+        }
+        
+        private void writeActiveStyles() {
             logger.info("");
             logger.info("Active Styles:");
             for (String activeStyle : rewrite.activeStyles) {
                 logger.info("    {}", activeStyle);
             }
-
+        }
+        
+        private void writeActiveRecipes(Collection<RecipeDescriptor> activeRecipeDescriptors) {
             logger.info("");
             logger.info("Active Recipes:");
             for (RecipeDescriptor recipeDescriptor : activeRecipeDescriptors) {
                 writeRecipeDescriptor(recipeDescriptor, detail, 0, 1);
             }
-
+        }
+        
+        private void writeSummary(Collection<RecipeDescriptor> availableRecipeDescriptors, 
+                                Collection<NamedStyles> availableStyles,
+                                Collection<RecipeDescriptor> activeRecipeDescriptors) {
             logger.info("");
             logger.info("Found {} available recipes and {} available styles.",
                     availableRecipeDescriptors.size(), availableStyles.size());
             logger.info("Configured with {} active recipes and {} active styles.",
                     activeRecipeDescriptors.size(), rewrite.activeStyles.size());
         }
-
+        
         private void writeRecipeDescriptor(RecipeDescriptor rd, boolean verbose, int currentRecursionLevel,
                 int indentLevel) {
             // Early return if recursion level is exceeded
@@ -1106,7 +1125,7 @@ class Rewrite implements Callable<Integer> {
         }
         
         private void writeRecipeListIfNeeded(RecipeDescriptor rd, boolean verbose, int currentRecursionLevel,
-                                           int indentLevel, String indent) {
+                                          int indentLevel, String indent) {
             boolean hasRecipeList = !rd.getRecipeList().isEmpty();
             boolean withinRecursionLimit = (currentRecursionLevel + 1 <= recursion);
             
