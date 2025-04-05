@@ -433,22 +433,41 @@ class Rewrite implements Callable<Integer> {
 
         public ResultsContainer(Path projectRoot, Collection<Result> results) {
             this.projectRoot = projectRoot;
-            for (Result result : results) {
-                if (result.getBefore() == null && result.getAfter() == null) {
-                    // This situation shouldn't happen / makes no sense, log and skip
-                    continue;
-                }
-                if (result.getBefore() == null && result.getAfter() != null) {
-                    generated.add(result);
-                } else if (result.getBefore() != null && result.getAfter() == null) {
-                    deleted.add(result);
-                } else if (result.getBefore() != null && result.getAfter() != null 
-                        && !result.getBefore().getSourcePath().equals(result.getAfter().getSourcePath())) {
-                    moved.add(result);
-                } else {
-                    refactoredInPlace.add(result);
-                }
+            
+            if (results == null || results.isEmpty()) {
+                return;
             }
+            
+            results.forEach(this::categorizeResult);
+        }
+        
+        private void categorizeResult(Result result) {
+            // Skip invalid results that have neither before nor after state
+            if (result.getBefore() == null && result.getAfter() == null) {
+                return;
+            }
+            
+            // Generated new file
+            if (result.getBefore() == null && result.getAfter() != null) {
+                generated.add(result);
+                return;
+            }
+            
+            // Deleted file
+            if (result.getBefore() != null && result.getAfter() == null) {
+                deleted.add(result);
+                return;
+            }
+            
+            // Moved file (path changed)
+            if (result.getBefore() != null && result.getAfter() != null 
+                    && !result.getBefore().getSourcePath().equals(result.getAfter().getSourcePath())) {
+                moved.add(result);
+                return;
+            }
+            
+            // Refactored in place (content changed but path is the same)
+            refactoredInPlace.add(result);
         }
 
         public Path getProjectRoot() {
