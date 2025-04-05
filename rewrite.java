@@ -609,27 +609,51 @@ class Rewrite implements Callable<Integer> {
     // Source:
     // https://sourcegraph.com/github.com/openrewrite/rewrite-maven-plugin@v5.40.0/-/blob/src/main/java/org/openrewrite/maven/AbstractRewriteBaseRunMojo.java?L471-489
     private void logRecipe(RecipeDescriptor rd, String prefix) {
+        log(recipeChangeLogLevel, buildRecipeLogMessage(rd, prefix));
+        logChildRecipes(rd, prefix);
+    }
+    
+    // Extract recipe message building
+    private String buildRecipeLogMessage(RecipeDescriptor rd, String prefix) {
         StringBuilder recipeString = new StringBuilder(prefix + rd.getName());
-        if (!rd.getOptions().isEmpty()) {
-            String opts = rd.getOptions().stream().map(option -> {
-                if (option.getValue() != null) {
-                    return option.getName() + "=" + option.getValue();
-                }
-                return null;
-            }).filter(Objects::nonNull).collect(joining(", "));
-            if (!opts.isEmpty()) {
-                recipeString.append(": {").append(opts).append("}");
-            }
+        
+        String options = formatRecipeOptions(rd);
+        if (!options.isEmpty()) {
+            recipeString.append(": {").append(options).append("}");
         }
-        // Use the new log method with configured level
-        log(recipeChangeLogLevel, recipeString.toString());
-        if (!rd.getRecipeList().isEmpty()) {
-            for (RecipeDescriptor rchild : rd.getRecipeList()) {
-                // Use StringBuilder to avoid string concatenation
-                StringBuilder childPrefix = new StringBuilder(prefix);
-                childPrefix.append(INDENT_SPACES);
-                logRecipe(rchild, childPrefix.toString());
-            }
+        
+        return recipeString.toString();
+    }
+    
+    // Extract options formatting
+    private String formatRecipeOptions(RecipeDescriptor rd) {
+        if (rd.getOptions().isEmpty()) {
+            return "";
+        }
+        
+        return rd.getOptions().stream()
+            .map(this::formatOption)
+            .filter(Objects::nonNull)
+            .collect(joining(", "));
+    }
+    
+    // Extract single option formatting
+    private String formatOption(OptionDescriptor option) {
+        if (option.getValue() != null) {
+            return option.getName() + "=" + option.getValue();
+        }
+        return null;
+    }
+    
+    // Extract child recipe logging
+    private void logChildRecipes(RecipeDescriptor rd, String prefix) {
+        if (rd.getRecipeList().isEmpty()) {
+            return;
+        }
+        
+        String childPrefix = prefix + INDENT_SPACES;
+        for (RecipeDescriptor childRecipe : rd.getRecipeList()) {
+            logRecipe(childRecipe, childPrefix);
         }
     }
 
@@ -693,99 +717,109 @@ class Rewrite implements Callable<Integer> {
         }
     }
 
+    // Process generated files
+    private void processGeneratedFiles(ResultsContainer results) throws IOException {
+        for (Result result : results.generated) {
+            if (result.getAfter() != null) {
+                logger.warn("Generated new file {} by:",
+                        result.getAfter().getSourcePath().normalize());
+                logRecipesThatMadeChanges(result);
+                
+                Path targetPath = results.getProjectRoot().resolve(result.getAfter().getSourcePath());
+                Charset charset = result.getAfter().getCharset();
+                String content = new String(result.getAfter().printAll().getBytes(charset), charset);
+                writeFileContent(targetPath, charset, content);
+            }
+        }
+    }
+    
+    // Process deleted files
+    private void processDeletedFiles(ResultsContainer results) throws IOException {
+        for (Result result : results.deleted) {
+            if (result.getBefore() != null) {
+                logger.warn("Deleted file {} by:",
+                        result.getBefore().getSourcePath().normalize());
+                logRecipesThatMadeChanges(result);
+                
+                Path originalLocation = results.getProjectRoot().resolve(result.getBefore().getSourcePath())
+                        .normalize();
+                try {
+                    Files.delete(originalLocation);
+                } catch (IOException e) {
+                    throw new IOException(
+                            String.format("Unable to delete file %s: %s", originalLocation.toAbsolutePath(), e.getMessage()), e);
+                }
+            }
+        }
+    }
+    
+    // Process moved files
+    private void processMovedFiles(ResultsContainer results) throws IOException {
+        for (Result result : results.moved) {
+            if (result.getAfter() != null && result.getBefore() != null) {
+                logger.warn("File has been moved from {} to {} by:",
+                        result.getBefore().getSourcePath().normalize(),
+                        result.getAfter().getSourcePath().normalize());
+                logRecipesThatMadeChanges(result);
+                
+                // Delete original file
+                if (result.getBefore() != null) {
+                    Path originalLocation = results.getProjectRoot().resolve(result.getBefore().getSourcePath());
+                    try {
+                        Files.delete(originalLocation);
+                    } catch (IOException e) {
+                        throw new IOException(
+                                String.format("Unable to delete file %s: %s", originalLocation.toAbsolutePath(), e.getMessage()), e);
+                    }
+                }
+                
+                // Create new file
+                if (result.getAfter() != null) {
+                    // Ensure directories exist
+                    Path afterLocation = results.getProjectRoot().resolve(result.getAfter().getSourcePath());
+                    File parentDir = afterLocation.toFile().getParentFile();
+
+                    if (!parentDir.exists() && !parentDir.mkdirs()) {
+                        logger.warn("Failed to create directory: {}", parentDir);
+                    }
+
+                    Charset charset = result.getAfter().getCharset();
+                    String content = new String(result.getAfter().printAll().getBytes(charset), charset);
+                    writeFileContent(afterLocation, charset, content);
+                }
+            }
+        }
+    }
+    
+    // Process files refactored in place
+    private void processRefactoredFiles(ResultsContainer results) throws IOException {
+        for (Result result : results.refactoredInPlace) {
+            if (result.getBefore() != null) {
+                logger.warn("Changes have been made to {} by:",
+                        result.getBefore().getSourcePath().normalize());
+                logRecipesThatMadeChanges(result);
+                
+                if (result.getAfter() != null) {
+                    Path targetPath = results.getProjectRoot().resolve(result.getBefore().getSourcePath());
+                    Charset charset = result.getAfter().getCharset();
+                    String content = new String(result.getAfter().printAll().getBytes(charset), charset);
+                    writeFileContent(targetPath, charset, content);
+                }
+            }
+        }
+    }
+
     void realrun() {
         ResultsContainer results = listResults();
 
         if (results.isNotEmpty()) {
-            for (Result result : results.generated) {
-                if (result.getAfter() != null) {
-                    logger.warn("Generated new file {} by:",
-                            result.getAfter().getSourcePath().normalize());
-                    logRecipesThatMadeChanges(result);
-                }
-            }
-            for (Result result : results.deleted) {
-                if (result.getBefore() != null) {
-                    logger.warn("Deleted file {} by:",
-                            result.getBefore().getSourcePath().normalize());
-                    logRecipesThatMadeChanges(result);
-                }
-            }
-            for (Result result : results.moved) {
-                if (result.getAfter() != null && result.getBefore() != null) {
-                    logger.warn("File has been moved from {} to {} by:",
-                            result.getBefore().getSourcePath().normalize(),
-                            result.getAfter().getSourcePath().normalize());
-                    logRecipesThatMadeChanges(result);
-                }
-            }
-            for (Result result : results.refactoredInPlace) {
-                if (result.getBefore() != null) {
-                    logger.warn("Changes have been made to {} by:",
-                            result.getBefore().getSourcePath().normalize());
-                    logRecipesThatMadeChanges(result);
-                }
-            }
-
             logger.warn("Please review and commit the results.");
 
             try {
-                for (Result result : results.generated) {
-                    if (result.getAfter() != null) {
-                        Path targetPath = results.getProjectRoot().resolve(result.getAfter().getSourcePath());
-                        Charset charset = result.getAfter().getCharset();
-                        String content = new String(result.getAfter().printAll().getBytes(charset), charset);
-                        writeFileContent(targetPath, charset, content);
-                    }
-                }
-                for (Result result : results.deleted) {
-                    if (result.getBefore() != null) {
-                        Path originalLocation = results.getProjectRoot().resolve(result.getBefore().getSourcePath())
-                                .normalize();
-                        try {
-                            Files.delete(originalLocation);
-                        } catch (IOException e) {
-                            throw new IOException(
-                                    String.format("Unable to delete file %s: %s", originalLocation.toAbsolutePath(), e.getMessage()), e);
-                        }
-                    }
-                }
-                for (Result result : results.moved) {
-                    // Should we try to use git to move the file first, and only if that fails fall
-                    // back to this?
-                    if (result.getBefore() != null) {
-                        Path originalLocation = results.getProjectRoot().resolve(result.getBefore().getSourcePath());
-                        try {
-                            Files.delete(originalLocation);
-                        } catch (IOException e) {
-                            throw new IOException(
-                                    String.format("Unable to delete file %s: %s", originalLocation.toAbsolutePath(), e.getMessage()), e);
-                        }
-                    }
-                    if (result.getAfter() != null) {
-                        // Ensure directories exist in case something was moved into a hitherto
-                        // non-existent package
-                        Path afterLocation = results.getProjectRoot().resolve(result.getAfter().getSourcePath());
-                        File parentDir = afterLocation.toFile().getParentFile();
-
-                        // Check return value of mkdirs()
-                        if (!parentDir.exists() && !parentDir.mkdirs()) {
-                            logger.warn("Failed to create directory: {}", parentDir);
-                        }
-
-                        Charset charset = result.getAfter().getCharset();
-                        String content = new String(result.getAfter().printAll().getBytes(charset), charset);
-                        writeFileContent(afterLocation, charset, content);
-                    }
-                }
-                for (Result result : results.refactoredInPlace) {
-                    if (result.getBefore() != null && result.getAfter() != null) {
-                        Path targetPath = results.getProjectRoot().resolve(result.getBefore().getSourcePath());
-                        Charset charset = result.getAfter().getCharset();
-                        String content = new String(result.getAfter().printAll().getBytes(charset), charset);
-                        writeFileContent(targetPath, charset, content);
-                    }
-                }
+                processGeneratedFiles(results);
+                processDeletedFiles(results);
+                processMovedFiles(results);
+                processRefactoredFiles(results);
             } catch (IOException e) {
                 throw new RewriteExecutionException("Unable to rewrite source files", e);
             }
@@ -890,42 +924,72 @@ class Rewrite implements Callable<Integer> {
 
         private void writeRecipeDescriptor(RecipeDescriptor rd, boolean verbose, int currentRecursionLevel,
                 int indentLevel) {
+            // Early return if recursion level is exceeded
+            if (currentRecursionLevel > recursion) {
+                return;
+            }
+            
             String indent = StringUtils.repeat(INDENT_SPACES, indentLevel * 4);
-            if (currentRecursionLevel <= recursion) {
-                if (verbose) {
-                    logger.info("{}{}", indent, rd.getDisplayName());
-                    logger.info("{}    {}", indent, rd.getName());
-                    String description = rd.getDescription();
-                    if (description != null && !description.isEmpty()) {
-                        logger.info("{}    {}", indent, description);
-                    }
+            
+            if (verbose) {
+                writeVerboseRecipeInfo(rd, indent);
+            } else {
+                logger.info("{}{}", indent, rd.getName());
+            }
 
-                    if (!rd.getOptions().isEmpty()) {
-                        logger.info("{}options: ", indent);
-                        for (OptionDescriptor od : rd.getOptions()) {
-                            logger.info("{}    {}: {}{}",
-                                    indent,
-                                    od.getName(),
-                                    od.getType(),
-                                    od.isRequired() ? "!" : "");
-                            if (od.getDescription() != null && !od.getDescription().isEmpty()) {
-                                logger.info("{}        {}", indent, od.getDescription());
-                            }
-                        }
-                    }
-                } else {
-                    logger.info("{}{}", indent, rd.getName());
-                }
-
-                if (!rd.getRecipeList().isEmpty() && (currentRecursionLevel + 1 <= recursion)) {
-                    logger.info("{}recipeList:", indent);
-                    for (RecipeDescriptor r : rd.getRecipeList()) {
-                        writeRecipeDescriptor(r, verbose, currentRecursionLevel + 1, indentLevel + 1);
-                    }
-                }
-
-                if (verbose) {
-                    logger.info("");
+            writeRecipeListIfNeeded(rd, verbose, currentRecursionLevel, indentLevel, indent);
+        }
+        
+        private void writeVerboseRecipeInfo(RecipeDescriptor rd, String indent) {
+            logger.info("{}{}", indent, rd.getDisplayName());
+            logger.info("{}    {}", indent, rd.getName());
+            
+            writeDescriptionIfPresent(rd, indent);
+            writeOptionsIfPresent(rd, indent);
+            
+            // Add blank line after verbose output
+            logger.info("");
+        }
+        
+        private void writeDescriptionIfPresent(RecipeDescriptor rd, String indent) {
+            String description = rd.getDescription();
+            if (description != null && !description.isEmpty()) {
+                logger.info("{}    {}", indent, description);
+            }
+        }
+        
+        private void writeOptionsIfPresent(RecipeDescriptor rd, String indent) {
+            if (rd.getOptions().isEmpty()) {
+                return;
+            }
+            
+            logger.info("{}options: ", indent);
+            for (OptionDescriptor od : rd.getOptions()) {
+                writeOptionInfo(od, indent);
+            }
+        }
+        
+        private void writeOptionInfo(OptionDescriptor od, String indent) {
+            logger.info("{}    {}: {}{}",
+                    indent,
+                    od.getName(),
+                    od.getType(),
+                    od.isRequired() ? "!" : "");
+                    
+            if (od.getDescription() != null && !od.getDescription().isEmpty()) {
+                logger.info("{}        {}", indent, od.getDescription());
+            }
+        }
+        
+        private void writeRecipeListIfNeeded(RecipeDescriptor rd, boolean verbose, int currentRecursionLevel,
+                                           int indentLevel, String indent) {
+            boolean hasRecipeList = !rd.getRecipeList().isEmpty();
+            boolean withinRecursionLimit = (currentRecursionLevel + 1 <= recursion);
+            
+            if (hasRecipeList && withinRecursionLimit) {
+                logger.info("{}recipeList:", indent);
+                for (RecipeDescriptor r : rd.getRecipeList()) {
+                    writeRecipeDescriptor(r, verbose, currentRecursionLevel + 1, indentLevel + 1);
                 }
             }
         }
