@@ -126,7 +126,7 @@ class Rewrite implements Callable<Integer> {
     @Option(names = {"--sources"}, defaultValue = ".", split = ",", description = "Directories containing source files to scan. Default is current directory.")
     List<String> sourceDirectories = emptyList();
 
-    @Option(names = "--discover-resources", defaultValue = "true", description = "Attempt to discover resource files (yml, xml, properties) in source directories.")
+    @Option(names = "--discover-resources", defaultValue = "false", description = "Attempt to discover resource files (properties, toml, xml, yaml) in source directories.")
     boolean discoverResources;
 
     @Option(names = "--classpath", description = "Specify the classpath for type resolution, using the system path separator.", split = "${sys:path.separator}")
