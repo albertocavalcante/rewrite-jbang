@@ -11,7 +11,7 @@
 //DEPS org.slf4j:jul-to-slf4j:1.7.36
 //DEPS org.jspecify:jspecify:1.0.0
 
-//DEPS org.openrewrite:rewrite-bom:8.49.0@pom
+//DEPS org.openrewrite:rewrite-bom:${rewrite.version:8.49.0}@pom
 //DEPS org.openrewrite:rewrite-core
 //DEPS org.openrewrite:rewrite-groovy
 //DEPS org.openrewrite:rewrite-hcl
