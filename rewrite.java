@@ -135,7 +135,7 @@ class Rewrite implements Callable<Integer> {
     @Option(names = {"--reportOutputDirectory", "--report"}, defaultValue = "./rewrite")
     private File reportOutputDirectory;
 
-    @Option(names = {"--failOnDryRunResults", "--fail-on-dry-run"}, defaultValue = "false")
+    @Option(names = {"--fail-on-dry-run"}, defaultValue = "false")
     boolean failOnDryRunResults;
 
     @Option(names = "--dry-run", defaultValue = "false")
