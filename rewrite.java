@@ -123,6 +123,9 @@ class Rewrite implements Callable<Integer> {
     @Option(names = "--recipes", split = "\\s*,\\s*", description = "Recipe(s) to apply. Accepts comma-separated list.")
     Set<String> activeRecipes = emptySet();
 
+    @Option(names = {"--sources"}, defaultValue = ".", split = ",", description = "Directories containing source files to scan. Default is current directory.")
+    List<String> sourceDirectories = emptyList();
+
     @Option(names = "--discover-resources", defaultValue = "true", description = "Attempt to discover resource files (yml, xml, properties) in source directories.")
     boolean discoverResources;
 
