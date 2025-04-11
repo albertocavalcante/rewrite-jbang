@@ -253,24 +253,18 @@ public class LoggingUtils {
     public static String applyStyle(String text, String style) {
         String template;
 
-        if (STYLE_ERROR.equals(style)) {
-            template = "@|bold,red %s|@";
-        } else if (STYLE_WARNING.equals(style)) {
-            template = "@|yellow %s|@";
-        } else if (STYLE_SUCCESS.equals(style)) {
-            template = "@|green %s|@";
-        } else if (STYLE_FILENAME.equals(style)) {
-            template = "@|cyan %s|@";
-        } else if (STYLE_HEADING.equals(style)) {
-            template = "@|bold %s|@";
-        } else if (STYLE_RECIPE.equals(style)) {
-            template = "@|blue %s|@";
-        } else if (STYLE_RECIPE_ACTIVE.equals(style)) {
-            template = "@|green,bold %s|@";
-        } else if (STYLE_HIGHLIGHT.equals(style)) {
-            template = "@|bold,yellow %s|@";
-        } else {
-            return text; // No styling
+        switch (style) {
+            case STYLE_ERROR -> template = "@|bold,red %s|@";
+            case STYLE_WARNING -> template = "@|yellow %s|@";
+            case STYLE_SUCCESS -> template = "@|green %s|@";
+            case STYLE_FILENAME -> template = "@|cyan %s|@";
+            case STYLE_HEADING -> template = "@|bold %s|@";
+            case STYLE_RECIPE -> template = "@|blue %s|@";
+            case STYLE_RECIPE_ACTIVE -> template = "@|green,bold %s|@";
+            case STYLE_HIGHLIGHT -> template = "@|bold,yellow %s|@";
+            case null, default -> {
+                return text; // No styling
+            }
         }
 
         return CommandLine.Help.Ansi.AUTO.string(String.format(template, text));
