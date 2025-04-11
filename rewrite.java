@@ -16,7 +16,8 @@
 //DEPS org.openrewrite:rewrite-java
 //DEPS org.openrewrite:rewrite-java-8
 //DEPS org.openrewrite:rewrite-java-11
-//DEPS org.openrewrite:rewrite-xml
+//DEPS org.openrewrite:rewrite-java-17
+//DEPS org.openrewrite:rewrite-java-21
 //DEPS org.openrewrite:rewrite-maven
 //DEPS org.openrewrite:rewrite-properties
 //DEPS org.openrewrite:rewrite-toml
