@@ -1,11 +1,14 @@
 ///usr/bin/env jbang "$0" "$@" ; exit $?
 //JAVA 17+
+//JAVA_OPTIONS --enable-preview
+//JAVAC_OPTIONS --enable-preview --release 17 -Xlint:-preview
 //COMPILE_OPTIONS -Xlint:deprecation -Xlint:unchecked -proc:none
 
 //REPOS mavencentral
 
 //DEPS info.picocli:picocli:4.7.6
-//DEPS ch.qos.logback:logback-classic:1.5.3
+//DEPS ch.qos.logback:logback-core:1.5.18
+//DEPS ch.qos.logback:logback-classic:1.5.18
 //DEPS org.fusesource.jansi:jansi:2.4.1
 //DEPS org.apache.maven:maven-core:3.9.9
 //DEPS org.slf4j:jul-to-slf4j:1.7.36
