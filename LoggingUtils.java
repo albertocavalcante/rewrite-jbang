@@ -1,16 +1,12 @@
-import java.util.regex.Pattern;
-import java.util.regex.Matcher;
-
-import ch.qos.logback.classic.LoggerContext;
 import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.LoggerContext;
 import ch.qos.logback.classic.encoder.PatternLayoutEncoder;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.ConsoleAppender;
-
-import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import picocli.CommandLine;
+
+import java.util.regex.Pattern;
 
 /**
  * Utility class providing enhanced logging support for the Rewrite CLI
@@ -38,7 +34,7 @@ public class LoggingUtils {
 
     // Pattern to detect the log lines we want to filter out
     private static final Pattern FILTER_PATTERN = Pattern.compile(
-            "\\d{2}:\\d{2}:\\d{2}\\.\\d{3}.*|.*\\[main\\].*|.*INFO\\s+Rewrite\\s*--.*");
+            "\\d{2}:\\d{2}:\\d{2}\\.\\d{3}.*|.*\\[main].*|.*INFO\\s+Rewrite\\s*--.*");
 
     /**
      * Configure Logback programmatically, without using logback.xml
@@ -66,7 +62,7 @@ public class LoggingUtils {
         mainAppender.start();
 
         // Explicitly handle specific loggers
-        
+
         // Turn off all Logback's internal logging
         ch.qos.logback.classic.Logger logbackLogger = context.getLogger("ch.qos.logback");
         logbackLogger.setLevel(Level.OFF);
@@ -202,25 +198,25 @@ public class LoggingUtils {
         if (noColor) {
             return name;
         }
-        
+
         // Don't try to format null or empty names
         if (name == null || name.isEmpty()) {
             return name;
         }
-        
+
         // Split the package by dots to color each segment differently
         String[] parts = name.split("\\.");
         if (parts.length <= 1) {
             // Not a package name, return as is
             return name;
         }
-        
+
         StringBuilder result = new StringBuilder();
-        
+
         // Format each segment with appropriate color
         for (int i = 0; i < parts.length; i++) {
             String part = parts[i];
-            
+
             // Add the package segment with appropriate styling
             if (i == 0) {
                 // First part (usually "org") - white
@@ -235,7 +231,7 @@ public class LoggingUtils {
                 // Other parts - normal text
                 result.append(part);
             }
-            
+
             // Add colored dot if not the last segment
             if (i < parts.length - 1) {
                 // Add the magenta dot - this needs to be a separate color 
@@ -243,7 +239,7 @@ public class LoggingUtils {
                 result.append(CommandLine.Help.Ansi.AUTO.string("@|magenta,bold .|@"));
             }
         }
-        
+
         return result.toString();
     }
 
