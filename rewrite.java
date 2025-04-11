@@ -21,6 +21,7 @@
 //DEPS org.openrewrite:rewrite-maven
 //DEPS org.openrewrite:rewrite-properties
 //DEPS org.openrewrite:rewrite-toml
+//DEPS org.openrewrite:rewrite-xml
 //DEPS org.openrewrite:rewrite-yaml
 
 //SOURCES CommandHandlers.java
