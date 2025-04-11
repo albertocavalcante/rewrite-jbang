@@ -319,7 +319,7 @@ class Rewrite implements Callable<Integer> {
         }
 
         List<String> activeProfiles = settings.getActiveProfiles().getActiveProfiles();
-        if (activeProfiles != null && !activeProfiles.isEmpty()) {
+        if (!activeProfiles.isEmpty()) {
             builder.activeProfiles(activeProfiles.toArray(new String[0]));
         }
     }
@@ -762,8 +762,7 @@ class Rewrite implements Callable<Integer> {
     private Stream<Result> getAllResultsStream(ResultsContainer results) {
         return Stream.concat(
                 Stream.concat(results.generated.stream(), results.deleted.stream()),
-                Stream.concat(results.moved.stream(), results.refactoredInPlace.stream())
-        );
+                Stream.concat(results.moved.stream(), results.refactoredInPlace.stream()));
     }
 
     // Helper method to write a line to the patch file with exception handling
@@ -778,6 +777,7 @@ class Rewrite implements Callable<Integer> {
     // Utility method to extract file content from SourceFile
     private String extractFileContent(SourceFile sourceFile) {
         Charset charset = sourceFile.getCharset();
+        assert charset != null;
         return new String(sourceFile.printAll().getBytes(charset), charset);
     }
 
