@@ -117,14 +117,11 @@ class Rewrite implements Callable<Integer> {
         return Path.of(baseDirPath).toAbsolutePath().normalize();
     }
 
-    @Option(names = "--recipes", split = ",")
-    Set<String> activeRecipes = emptySet();
-
     @Option(names = "--styles", split = ",")
     protected Set<String> activeStyles = Collections.emptySet();
 
-    @Option(names = {"--javaSources", "--java-sources"}, defaultValue = ".", split = ",")
-    List<String> javaSourcePaths = emptyList();
+    @Option(names = "--recipes", split = "\\s*,\\s*", description = "Recipe(s) to apply. Accepts comma-separated list.")
+    Set<String> activeRecipes = emptySet();
 
     @Option(names = "--discover-resources", defaultValue = "true", description = "Attempt to discover resource files (yml, xml, properties) in source directories.")
     boolean discoverResources;
