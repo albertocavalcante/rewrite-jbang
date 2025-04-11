@@ -1,5 +1,5 @@
 ///usr/bin/env jbang "$0" "$@" ; exit $?
-//JAVA 21+
+//JAVA 17+
 //COMPILE_OPTIONS -Xlint:deprecation -Xlint:unchecked -proc:none
 
 //REPOS mavencentral
