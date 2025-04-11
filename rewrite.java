@@ -32,48 +32,17 @@
 //SOURCES CommandHandlers.java
 //SOURCES LoggingUtils.java
 
-import static java.util.Collections.emptyList;
-import static java.util.Collections.emptySet;
-import static java.util.stream.Collectors.joining;
-
-import java.io.BufferedWriter;
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.IOException;
-import java.io.PrintStream;
-import java.nio.charset.Charset;
-import java.nio.file.FileVisitResult;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.SimpleFileVisitor;
-import java.nio.file.attribute.BasicFileAttributes;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Objects;
-import java.util.Set;
-import java.util.concurrent.Callable;
-import java.util.stream.Stream;
-import java.util.regex.Pattern;
 
 import org.apache.maven.execution.DefaultMavenExecutionRequest;
 import org.apache.maven.execution.MavenExecutionRequest;
 import org.apache.maven.model.Repository;
-import org.openrewrite.ExecutionContext;
-import org.openrewrite.InMemoryExecutionContext;
-import org.openrewrite.LargeSourceSet;
-import org.openrewrite.RecipeRun;
-import org.openrewrite.Result;
-import org.openrewrite.SourceFile;
-import org.openrewrite.Validated;
+import org.fusesource.jansi.AnsiConsole;
+import org.jspecify.annotations.NonNull;
+import org.openrewrite.*;
 import org.openrewrite.config.Environment;
 import org.openrewrite.config.OptionDescriptor;
 import org.openrewrite.config.RecipeDescriptor;
 import org.openrewrite.internal.InMemoryLargeSourceSet;
-import org.openrewrite.internal.StringUtils;
 import org.openrewrite.java.JavaParser;
 import org.openrewrite.marker.Generated;
 import org.openrewrite.maven.MavenExecutionContextView;
@@ -89,13 +58,25 @@ import org.openrewrite.xml.tree.Xml;
 import org.openrewrite.yaml.YamlParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
-import org.fusesource.jansi.AnsiConsole;
 
-@Command(name = "rewrite", mixinStandardHelpOptions = true, version = "rewrite 0.2", description = "rewrite made with jbang", subcommands = CommandHandlers.RewriteDiscover.class)
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.IOException;
+import java.nio.charset.Charset;
+import java.nio.file.*;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.util.*;
+import java.util.concurrent.Callable;
+import java.util.stream.Stream;
+
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptySet;
+import static java.util.stream.Collectors.joining;
+
+@Command(name = "rewrite", mixinStandardHelpOptions = true, version = "rewrite 0.2", description = "Rewrite made with JBang", subcommands = CommandHandlers.RewriteDiscover.class)
 class Rewrite implements Callable<Integer> {
 
     private static final String INDENT_SPACES = "    ";
