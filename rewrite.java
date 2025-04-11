@@ -132,14 +132,14 @@ class Rewrite implements Callable<Integer> {
     @Option(names = "--classpath", description = "Specify the classpath for type resolution, using the system path separator.", split = "${sys:path.separator}")
     List<String> classpathElements = emptyList();
 
-    @Option(names = {"--failOnInvalidActiveRecipes", "--fail-on-invalid-recipes"}, defaultValue = "false")
+    @Option(names = {"--fail-on-invalid-recipes"}, defaultValue = "false")
     boolean failOnInvalidActiveRecipes;
 
-    @Option(names = {"--reportOutputDirectory", "--report"}, defaultValue = "./rewrite")
+    @Option(names = {"--report-output-dir"}, defaultValue = "./rewrite")
     private File reportOutputDirectory;
 
     @Option(names = {"--fail-on-dry-run"}, defaultValue = "false")
-    boolean failOnDryRunResults;
+    boolean failOnDryRun;
 
     @Option(names = "--dry-run", defaultValue = "false")
     boolean dryRun;
@@ -974,7 +974,7 @@ class Rewrite implements Callable<Integer> {
         // Write patch file
         writePatchFile(results);
 
-        if (failOnDryRunResults) {
+        if (failOnDryRun) {
             throw new RewriteExecutionException("Applying recipes would make changes. See logs for more details.");
         }
     }
