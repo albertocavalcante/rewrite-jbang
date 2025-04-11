@@ -1,15 +1,13 @@
+import org.openrewrite.config.Environment;
+import org.openrewrite.config.OptionDescriptor;
+import org.openrewrite.config.RecipeDescriptor;
+import org.openrewrite.style.NamedStyles;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.ParentCommand;
 
-import org.openrewrite.config.Environment;
-import org.openrewrite.config.RecipeDescriptor;
-import org.openrewrite.config.OptionDescriptor;
-import org.openrewrite.style.NamedStyles;
-
 import java.util.Collection;
 import java.util.HashSet;
-import java.util.Objects;
 import java.util.concurrent.Callable;
 
 /**
@@ -21,7 +19,7 @@ public class CommandHandlers {
      * Command that discovers available recipes and styles
      */
     @Command(name = "discover", mixinStandardHelpOptions = true,
-            description = "List all available recipes and styles.", 
+            description = "List all available recipes and styles.",
             headerHeading = "%n",
             header = "Discover available OpenRewrite recipes and styles")
     public static class RewriteDiscover implements Callable<Integer> {
@@ -40,7 +38,7 @@ public class CommandHandlers {
          * Filter recipes by type/category (matches against package name). For example:<br>
          * {@code rewrite discover --type=java} will show only Java recipes.
          */
-        @Option(names = {"--type", "--category"}, description = "Filter recipes by category (java, maven, yaml, etc.)")
+        @Option(names = {"--type", "--category"}, description = "Filter recipes by category (Java, Maven, YAML, etc.)")
         String typeFilter;
 
         /**
@@ -61,17 +59,17 @@ public class CommandHandlers {
         public Integer call() {
             Environment env = rewrite.environment();
             Collection<RecipeDescriptor> availableRecipeDescriptors = env.listRecipeDescriptors();
-            
+
             // Apply type/category filter if specified
             if (typeFilter != null && !typeFilter.isEmpty()) {
                 final String filter = typeFilter.toLowerCase();
                 availableRecipeDescriptors = availableRecipeDescriptors.stream()
-                    .filter(rd -> categoryMatches(rd.getName(), filter))
-                    .collect(java.util.stream.Collectors.toList());
-                    
+                        .filter(rd -> categoryMatches(rd.getName(), filter))
+                        .collect(java.util.stream.Collectors.toList());
+
                 System.out.println("\nFiltering by category: " + LoggingUtils.formatJavaName("org.openrewrite." + filter, rewrite.noColor));
             }
-            
+
             if (recipe != null) {
                 RecipeDescriptor rd = rewrite.getRecipeDescriptor(recipe, availableRecipeDescriptors);
                 writeRecipeDescriptor(rd, detail, 0, 0);
@@ -85,27 +83,31 @@ public class CommandHandlers {
             }
             return 0;
         }
-        
+
         /**
          * Check if a recipe name matches the specified category filter
          */
-        private boolean categoryMatches(String recipeName, String filter) {
+        boolean categoryMatches(String recipeName, String filter) {
             // Special case for "all" to show all recipes
             if ("all".equalsIgnoreCase(filter)) {
                 return true;
             }
-            
+
             // Extract category from recipe name based on package structure
             // E.g. org.openrewrite.java.format.AutoFormat -> "java"
             String[] parts = recipeName.split("\\.");
-            
+
             // Most recipes follow the pattern org.openrewrite.CATEGORY...
             if (parts.length >= 3 && "openrewrite".equals(parts[1])) {
-                return parts[2].toLowerCase().equals(filter);
+                boolean categoryMatch = parts[2].equalsIgnoreCase(filter);
+                if (categoryMatch) {
+                    return true;
+                }
+                // If category doesn't match, still try the contains check below
             }
-            
+
             // Special case handling for specific keywords
-            return recipeName.toLowerCase().contains(filter);
+            return recipeName.toLowerCase().contains(filter.toLowerCase());
         }
 
         private void writeDiscovery(Collection<RecipeDescriptor> availableRecipeDescriptors,
@@ -118,7 +120,7 @@ public class CommandHandlers {
             writeCategories(availableRecipeDescriptors);
             writeSummary(availableRecipeDescriptors, availableStyles, activeRecipeDescriptors);
         }
-        
+
         /**
          * Write out available categories extracted from recipe names
          */
@@ -126,7 +128,7 @@ public class CommandHandlers {
             System.out.println();
             rewrite.printColored("Available Categories", LoggingUtils.STYLE_HEADING);
             System.out.println();
-            
+
             // Extract all categories from recipe names
             java.util.Set<String> categories = new java.util.TreeSet<>();
             for (RecipeDescriptor rd : availableRecipeDescriptors) {
@@ -135,25 +137,25 @@ public class CommandHandlers {
                     categories.add(parts[2]);
                 }
             }
-            
+
             // Print sorted categories with counts
             for (String category : categories) {
                 // Count recipes in this category
                 long count = availableRecipeDescriptors.stream()
-                    .filter(rd -> categoryMatches(rd.getName(), category))
-                    .count();
-                
+                        .filter(rd -> categoryMatches(rd.getName(), category))
+                        .count();
+
                 String formattedCategory = LoggingUtils.formatJavaName("org.openrewrite." + category, rewrite.noColor);
                 rewrite.printIndented(formattedCategory + " (" + count + " recipes)", LoggingUtils.STYLE_RECIPE, 1);
             }
-            
+
             // Print help text for filtering if not already filtered
             if (typeFilter == null) {
                 System.out.println();
                 rewrite.printIndented("Use --type=<category> to filter recipes by category", LoggingUtils.STYLE_HIGHLIGHT, 1);
             }
         }
-        
+
         private void writeAvailableRecipes(Collection<RecipeDescriptor> availableRecipeDescriptors) {
             rewrite.printColored("Available Recipes", LoggingUtils.STYLE_HEADING);
             System.out.println();
@@ -212,22 +214,22 @@ public class CommandHandlers {
             if (currentRecursionLevel > recursion) {
                 return;
             }
-            
+
             StringBuilder recipeInfo = new StringBuilder(LoggingUtils.formatJavaName(rd.getName(), rewrite.noColor));
-            
+
             // Add a check mark to indicate this is the active recipe
             if (rewrite.activeRecipes.contains(rd.getName())) {
                 recipeInfo.append(" ").append(LoggingUtils.SYMBOL_SUCCESS);
             }
-            
+
             // Use active recipe style if it's active, otherwise regular recipe style
             String style = rewrite.activeRecipes.contains(rd.getName()) ? LoggingUtils.STYLE_RECIPE_ACTIVE : LoggingUtils.STYLE_RECIPE;
             rewrite.printIndented(recipeInfo.toString(), style, indentLevel);
-            
+
             if (verbose) {
                 writeVerboseRecipeInfo(rd, indentLevel + 1);
             }
-            
+
             writeRecipeListIfNeeded(rd, verbose, currentRecursionLevel, indentLevel + 1);
         }
 
@@ -241,7 +243,7 @@ public class CommandHandlers {
 
             // Description as plain text
             String description = rd.getDescription();
-            if (description != null && !description.isEmpty()) {
+            if (!description.isEmpty()) {
                 rewrite.printIndented(description, LoggingUtils.STYLE_INFO, indentLevel + 1);
             }
 
@@ -287,4 +289,4 @@ public class CommandHandlers {
             }
         }
     }
-} 
+}
