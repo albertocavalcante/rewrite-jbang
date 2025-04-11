@@ -111,9 +111,8 @@ class Rewrite implements Callable<Integer> {
         // Private constructor for singleton
     }
 
-    @Option(names = {"--baseDir",
-            "--base-dir"}, description = "Base directory for the project. Defaults to current directory.")
-    private String baseDirPath = ".";
+    @Option(names = "--base-dir", defaultValue = ".", description = "Base directory for the project. Defaults to current directory.")
+    private String baseDirPath;
 
     private Path baseDir() {
         return Path.of(baseDirPath).toAbsolutePath().normalize();
@@ -125,7 +124,7 @@ class Rewrite implements Callable<Integer> {
     @Option(names = "--recipes", split = "\\s*,\\s*", description = "Recipe(s) to apply. Accepts comma-separated list.")
     Set<String> activeRecipes = emptySet();
 
-    @Option(names = {"--sources"}, defaultValue = ".", split = ",", description = "Directories containing source files to scan. Default is current directory.")
+    @Option(names = "--sources", defaultValue = ".", split = ",", description = "Directories containing source files to scan. Default is current directory.")
     List<String> sourceDirectories = emptyList();
 
     @Option(names = "--discover-resources", defaultValue = "false", description = "Attempt to discover resource files (properties, toml, xml, yaml) in source directories.")
@@ -134,19 +133,18 @@ class Rewrite implements Callable<Integer> {
     @Option(names = "--classpath", description = "Specify the classpath for type resolution, using the system path separator.", split = "${sys:path.separator}")
     List<String> classpathElements = emptyList();
 
-    @Option(names = {"--fail-on-invalid-recipes"}, defaultValue = "false")
+    @Option(names = "--fail-on-invalid-recipes", defaultValue = "false")
     boolean failOnInvalidActiveRecipes;
 
-    @Option(names = {"--report-output-dir"}, defaultValue = "./rewrite")
+    @Option(names = "--report-output-dir", defaultValue = "./rewrite")
     private File reportOutputDirectory;
 
-    @Option(names = {"--fail-on-dry-run"}, defaultValue = "false")
+    @Option(names = "--fail-on-dry-run", defaultValue = "false")
     boolean failOnDryRun;
 
     @Option(names = "--dry-run", defaultValue = "false")
     boolean dryRun;
 
-    // Add LogLevel enum
     public enum LogLevel {
         DEBUG,
         INFO,
@@ -157,18 +155,17 @@ class Rewrite implements Callable<Integer> {
     @Option(names = "--recipe-change-log-level", defaultValue = "WARN", description = "Log level for reporting recipe changes (DEBUG, INFO, WARN, ERROR).")
     LogLevel recipeChangeLogLevel = LogLevel.WARN;
 
-    // Add a flag to disable ANSI colors
     @Option(names = {"--no-color"}, description = "Disable colorized output", defaultValue = "false")
     boolean noColor;
 
     public static void main(String... args) {
         // Initialize Jansi for ANSI color support
         AnsiConsole.systemInstall();
-        
+
         try {
             // Configure logging
             LoggingUtils.configureLogbackProgrammatically();
-            
+
             int exitCode = new CommandLine(new Rewrite()).execute(args);
             System.exit(exitCode);
         } finally {
@@ -192,9 +189,7 @@ class Rewrite implements Callable<Integer> {
     }
 
     protected ExecutionContext executionContext() {
-        return new InMemoryExecutionContext(t ->
-                logger.warn("Error during recipe execution: {}", t.getMessage(), t)
-        );
+        return new InMemoryExecutionContext(t -> logger.warn("Error during recipe execution: {}", t.getMessage(), t));
     }
 
     private static RawRepositories buildRawRepositories(List<Repository> repositoriesToMap) {
@@ -205,12 +200,12 @@ class Rewrite implements Callable<Integer> {
         RawRepositories rawRepositories = new RawRepositories();
         List<RawRepositories.Repository> transformedRepositories = repositoriesToMap
                 .stream().map(r -> new RawRepositories.Repository(
-                r.getId(),
-                r.getUrl(),
-                r.getReleases() == null ? null
-                        : new RawRepositories.ArtifactPolicy(Boolean.toString(r.getReleases().isEnabled())),
-                r.getSnapshots() == null ? null
-                        : new RawRepositories.ArtifactPolicy(Boolean.toString(r.getSnapshots().isEnabled()))))
+                        r.getId(),
+                        r.getUrl(),
+                        r.getReleases() == null ? null
+                                : new RawRepositories.ArtifactPolicy(Boolean.toString(r.getReleases().isEnabled())),
+                        r.getSnapshots() == null ? null
+                                : new RawRepositories.ArtifactPolicy(Boolean.toString(r.getSnapshots().isEnabled()))))
                 .toList();
         rawRepositories.setRepositories(transformedRepositories);
         return rawRepositories;
@@ -262,7 +257,8 @@ class Rewrite implements Callable<Integer> {
         return null;
     }
 
-    private ProfileActivation createProfileActivation(org.apache.maven.model.Profile p, ProfileActivation.Property property) {
+    private ProfileActivation createProfileActivation(org.apache.maven.model.Profile p,
+                                                      ProfileActivation.Property property) {
         if (p.getActivation() == null) {
             return null;
         }
@@ -528,14 +524,13 @@ class Rewrite implements Callable<Integer> {
     }
 
     // Extract method to parse Java sources
-    private List<SourceFile> parseJavaSources(List<Path> javaSources, List<Path> classpath, List<NamedStyles> styles, ExecutionContext ctx) {
-        List<SourceFile> sourceFiles = new ArrayList<>();
-        sourceFiles.addAll(
-                JavaParser.fromJavaVersion()
-                        .styles(styles)
-                        .classpath(classpath)
-                        .logCompilationWarningsAndErrors(true).build().parse(javaSources, baseDir(), ctx)
-                        .toList());
+    private List<SourceFile> parseJavaSources(List<Path> javaSources, List<Path> classpath, List<NamedStyles> styles,
+                                              ExecutionContext ctx) {
+        List<SourceFile> sourceFiles = new ArrayList<>(JavaParser.fromJavaVersion()
+                .styles(styles)
+                .classpath(classpath)
+                .logCompilationWarningsAndErrors(true).build().parse(javaSources, baseDir(), ctx)
+                .toList());
         logger.info("{} java files parsed.", sourceFiles.size());
         return sourceFiles;
     }
@@ -653,13 +648,13 @@ class Rewrite implements Callable<Integer> {
     // Extract recipe message building without prefix
     private String buildRecipeLogMessage(RecipeDescriptor rd) {
         String message = LoggingUtils.formatJavaName(rd.getName(), noColor);
-        
+
         // Add recipe options if present
         String options = formatRecipeOptions(rd);
         if (!options.isEmpty()) {
             message += " [" + options + "]";
         }
-        
+
         return message;
     }
 
