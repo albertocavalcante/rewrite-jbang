@@ -12,6 +12,7 @@
 //DEPS org.openrewrite:rewrite-bom:8.49.0@pom
 //DEPS org.openrewrite:rewrite-core
 //DEPS org.openrewrite:rewrite-groovy
+//DEPS org.openrewrite:rewrite-hcl
 //DEPS org.openrewrite:rewrite-java
 //DEPS org.openrewrite:rewrite-java-8
 //DEPS org.openrewrite:rewrite-java-11
