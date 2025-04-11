@@ -369,7 +369,7 @@ class Rewrite implements Callable<Integer> {
             List<Path> result = new ArrayList<>();
             Files.walkFileTree(sourceRoot, new SimpleFileVisitor<Path>() {
                 @Override
-                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+                public @NonNull FileVisitResult visitFile(Path file, @NonNull BasicFileAttributes attrs) {
                     if (!attrs.isDirectory() && file.toString().endsWith(".java")) {
                         try {
                             // Still normalize the path
@@ -383,7 +383,7 @@ class Rewrite implements Callable<Integer> {
                 }
 
                 @Override
-                public FileVisitResult visitFileFailed(Path file, IOException exc) throws IOException {
+                public @NonNull FileVisitResult visitFileFailed(Path file, @NonNull IOException exc) {
                     // Handle errors visiting files (e.g. permission issues)
                     logger.warn("Failed to visit file: {} - {}", file, exc.getMessage());
                     return FileVisitResult.CONTINUE;
