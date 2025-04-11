@@ -406,7 +406,8 @@ class Rewrite implements Callable<Integer> {
         return resourceFiles;
     }
 
-    private static void addResourcesFromDirectory(Set<Path> resourceFiles, Set<String> resourceExtensions, String sourceDir) {
+    private static void addResourcesFromDirectory(Set<Path> resourceFiles, Set<String> resourceExtensions,
+                                                  String sourceDir) {
         File sourceDirectoryFile = new File(sourceDir);
         if (!isValidDirectory(sourceDirectoryFile)) {
             return;
@@ -558,7 +559,8 @@ class Rewrite implements Callable<Integer> {
         // Setup environment and check for recipes
         var env = environment();
         if (activeRecipes.isEmpty()) {
-            logger.warn("No recipes specified. Activate a recipe on the command line with '--recipes com.fully.qualified.RecipeClassName'");
+            logger.warn(
+                    "No recipes specified. Activate a recipe on the command line with '--recipes com.fully.qualified.RecipeClassName'");
             return new ResultsContainer(baseDir(), emptyList());
         }
 
@@ -628,9 +630,6 @@ class Rewrite implements Callable<Integer> {
         }
     }
 
-    // Updated Source URL
-    // Source:
-    // https://sourcegraph.com/github.com/openrewrite/rewrite-maven-plugin@v5.40.0/-/blob/src/main/java/org/openrewrite/maven/AbstractRewriteBaseRunMojo.java?L461-469
     protected void logRecipesThatMadeChanges(Result result) {
         int indentLevel = 2; // Start with 2-level indent
         // Print recipes that made changes with progressive indentation
@@ -640,9 +639,6 @@ class Rewrite implements Callable<Integer> {
         }
     }
 
-    // Updated Source URL
-    // Source:
-    // https://sourcegraph.com/github.com/openrewrite/rewrite-maven-plugin@v5.40.0/-/blob/src/main/java/org/openrewrite/maven/AbstractRewriteBaseRunMojo.java?L471-489
     private void logRecipe(RecipeDescriptor rd, int indentLevel) {
         printIndented(buildRecipeLogMessage(rd), LoggingUtils.STYLE_RECIPE, indentLevel);
         logChildRecipes(rd, indentLevel + 2);
@@ -832,10 +828,10 @@ class Rewrite implements Callable<Integer> {
     private List<SourceFile> parseAllJavaSourceFiles(List<NamedStyles> styles, ExecutionContext ctx) {
         // Collect all Java sources from configured paths
         List<Path> javaSources = new ArrayList<>();
-        javaSourcePaths.forEach(path -> javaSources.addAll(listJavaSources(path)));
+        sourceDirectories.forEach(path -> javaSources.addAll(listJavaSources(path)));
 
         if (logger.isInfoEnabled()) {
-            logger.info("Parsing Java files found in: {}", javaSourcePaths.stream().collect(joining(", ")));
+            logger.info("Parsing Java files found in: {}", String.join(", ", sourceDirectories));
         }
 
         // Prepare classpath for type resolution
@@ -866,7 +862,8 @@ class Rewrite implements Callable<Integer> {
         if (!resources.isEmpty()) {
             // Parse YAML
             parseResourcesOfType(sourceFiles, resources, "YAML",
-                    path -> path.getFileName().toString().endsWith(".yml") || path.getFileName().toString().endsWith(".yaml"),
+                    path -> path.getFileName().toString().endsWith(".yml")
+                            || path.getFileName().toString().endsWith(".yaml"),
                     paths -> new YamlParser().parse(paths, baseDir(), ctx),
                     ctx);
 
@@ -901,10 +898,10 @@ class Rewrite implements Callable<Integer> {
 
         if (logger.isInfoEnabled()) {
             logger.info("Discovering resource files (yml, yaml, properties, xml, toml) in: {}",
-                    javaSourcePaths.stream().collect(joining(", ")));
+                    String.join(", ", sourceDirectories));
         }
 
-        Set<Path> resources = listResourceFiles(javaSourcePaths);
+        Set<Path> resources = listResourceFiles(sourceDirectories);
         logger.info("Found {} resource files.", resources.size());
         return resources;
     }
@@ -940,7 +937,7 @@ class Rewrite implements Callable<Integer> {
         List<Result> filteredResults = results.stream()
                 .filter(source -> {
                     if (source.getBefore() != null) {
-                        return !source.getBefore().getMarkers().findFirst(Generated.class).isPresent();
+                        return source.getBefore().getMarkers().findFirst(Generated.class).isEmpty();
                     }
                     return true;
                 }).toList();
@@ -966,7 +963,6 @@ class Rewrite implements Callable<Integer> {
         if (!results.isNotEmpty()) {
             return;
         }
-
 
         // Report all changes that would be made
         reportAllChanges(results);
@@ -1001,7 +997,8 @@ class Rewrite implements Callable<Integer> {
             Files.delete(originalLocation);
         } catch (IOException e) {
             throw new IOException(
-                    String.format("Unable to delete file %s: %s", originalLocation.toAbsolutePath(), e.getMessage()), e);
+                    String.format("Unable to delete file %s: %s", originalLocation.toAbsolutePath(), e.getMessage()),
+                    e);
         }
     }
 
