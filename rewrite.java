@@ -16,6 +16,7 @@
 
 //DEPS org.openrewrite:rewrite-bom:${rewrite.version:8.49.0}@pom
 //DEPS org.openrewrite:rewrite-core
+//DEPS org.openrewrite:rewrite-csharp
 //DEPS org.openrewrite:rewrite-groovy
 //DEPS org.openrewrite:rewrite-hcl
 //DEPS org.openrewrite:rewrite-java
