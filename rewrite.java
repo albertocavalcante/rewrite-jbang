@@ -24,8 +24,12 @@
 //DEPS org.openrewrite:rewrite-java-11
 //DEPS org.openrewrite:rewrite-java-17
 //DEPS org.openrewrite:rewrite-java-21
+//DEPS org.openrewrite:rewrite-javascript
 //DEPS org.openrewrite:rewrite-maven
+//DEPS org.openrewrite:rewrite-polyglot
 //DEPS org.openrewrite:rewrite-properties
+//DEPS org.openrewrite:rewrite-python
+//DEPS org.openrewrite:rewrite-templating
 //DEPS org.openrewrite:rewrite-toml
 //DEPS org.openrewrite:rewrite-xml
 //DEPS org.openrewrite:rewrite-yaml
