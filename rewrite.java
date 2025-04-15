@@ -28,6 +28,11 @@
 //DEPS org.openrewrite:rewrite-toml
 //DEPS org.openrewrite:rewrite-xml
 //DEPS org.openrewrite:rewrite-yaml
+//DEPS org.openrewrite:rewrite-recipe-bom:${rewrite.recipe.version:3.6.1}@pom
+//DEPS org.openrewrite.recipe:rewrite-rewrite
+//DEPS org.openrewrite.recipe:rewrite-jenkins
+//DEPS org.openrewrite.recipe:rewrite-spring
+//DEPS org.openrewrite.recipe:rewrite-testing-frameworks
 
 //SOURCES CommandHandlers.java
 //SOURCES LoggingUtils.java
