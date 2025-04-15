@@ -1,7 +1,7 @@
 ///usr/bin/env jbang "$0" "$@" ; exit $?
 //JAVA 17+
 //JAVA_OPTIONS --enable-preview
-//JAVAC_OPTIONS --enable-preview --release 17 -Xlint:-preview
+//JAVAC_OPTIONS --enable-preview --release 21 -Xlint:-preview
 //COMPILE_OPTIONS -Xlint:deprecation -Xlint:unchecked -proc:none
 
 //REPOS mavencentral
